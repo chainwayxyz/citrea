@@ -17,7 +17,6 @@ pub fn use_network_forks(network: Network) {
         Network::Testnet => &TESTNET_FORKS,
         Network::Devnet => &DEVNET_FORKS,
         Network::Nightly => &NIGHTLY_FORKS,
-        Network::TestNetworkWithForks => &ALL_FORKS,
     };
 
     #[cfg(not(feature = "testing"))]
@@ -45,6 +44,18 @@ pub fn get_forks() -> &'static [Fork] {
     }
 }
 
+/// Spec whose guest ELF and code commitment produce and verify batch and light client proofs,
+/// including fake proofs submitted over RPC.
+///
+/// Always [`SpecId::Pomelo`]: RISC0 guests for pre-Pomelo forks were removed, so Pomelo is the only
+/// spec with a code commitment, while production fork lists do not activate Pomelo yet.
+/// Selecting by [`fork_from_block_number`] would therefore look up a missing pre-Pomelo spec.
+///
+/// TODO: on the next fork after Pomelo, select by fork again, never below Pomelo.
+pub const fn proof_guest_spec_id() -> SpecId {
+    SpecId::Pomelo
+}
+
 /// Get fork from the given block number. Forks must be set before calling this method if not in test environment.
 /// In test environment default forks are used.
 pub fn fork_from_block_number(block_number: u64) -> Fork {
@@ -53,35 +64,29 @@ pub fn fork_from_block_number(block_number: u64) -> Fork {
     forks[pos]
 }
 
-pub const MAINNET_FORKS: [Fork; 2] = [
+pub const MAINNET_FORKS: [Fork; 3] = [
     Fork::new(SpecId::Tangelo, 0),
     Fork::new(SpecId::TangeloSelfdestructFix, 3098000), // will be reached Feb 5 2026 ~1 PM UTC
+    Fork::new(SpecId::Pomelo, u64::MAX),
 ];
 
-pub const TESTNET_FORKS: [Fork; 5] = [
+pub const TESTNET_FORKS: [Fork; 6] = [
     Fork::new(SpecId::Genesis, 0),
     Fork::new(SpecId::Kumquat, 5546000), // will be reached Jan 24 2025 ~7 PM
     Fork::new(SpecId::Tangerine, 9057000), // will be reached Apr 18 2025 6.30 AM
     Fork::new(SpecId::Tangelo, 17733000), // will be reached Nov 4 2025 ~2.30 PM
     Fork::new(SpecId::TangeloSelfdestructFix, 21741000), // will be reached Feb 5 2026 ~11 AM
+    Fork::new(SpecId::Pomelo, u64::MAX),
 ];
 
-pub const DEVNET_FORKS: [Fork; 3] = [
+pub const DEVNET_FORKS: [Fork; 4] = [
     Fork::new(SpecId::Tangerine, 0),
     Fork::new(SpecId::Tangelo, 8063000), // will be reached Oct 18 2025 ~12 PM
     Fork::new(SpecId::TangeloSelfdestructFix, 12654000), // will be reached Feb 04 2026 ~22 PM
+    Fork::new(SpecId::Pomelo, u64::MAX),
 ];
 
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::latest(), 0)];
-
-pub const ALL_FORKS: [Fork; 5] = [
-    Fork::new(SpecId::Genesis, 0),
-    Fork::new(SpecId::Kumquat, 100),
-    Fork::new(SpecId::Tangerine, 200),
-    Fork::new(SpecId::Tangelo, 210),
-    Fork::new(SpecId::TangeloSelfdestructFix, 220),
-    // Add the next fork here when needed
-];
 
 const _CHECK_FORKS: () = {
     if !verify_forks(&MAINNET_FORKS)

@@ -100,7 +100,7 @@ pub(crate) fn mine_reveal_prefix(
         }
 
         iterations += 1;
-        if iterations % 1000 == 0 {
+        if iterations.is_multiple_of(1000) {
             trace!(iterations, "Mining for {label} reveal tx prefix");
             if iterations > 16384 {
                 warn!("Too many iterations mining for {label} reveal tx prefix");
@@ -119,7 +119,7 @@ fn verify_commit_address(
     expected_address: &Address,
 ) {
     let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
-    let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+    let (x_only_pub_key, _parity) = recovery_key_pair.to_keypair().x_only_public_key();
     assert_eq!(
         Address::p2tr_tweaked(
             TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
@@ -135,7 +135,7 @@ fn verify_commit_address(
 /// from the `reveal_tx_prefix`.
 #[allow(clippy::too_many_arguments)]
 #[instrument(level = "trace", skip_all, err)]
-pub fn create_inscription_transactions(
+pub(crate) fn create_inscription_transactions(
     data: RawTxData,
     da_private_key: SecretKey,
     utxo_context: UtxoContext,

@@ -87,19 +87,18 @@ pub(crate) fn create_txn_env(
         // we must make sure it does not exceed the ceiling
         // otherwise there is a DoS vector
         gas_limit = min(request_gas_limit, ceiling);
-    } else if cap_to_balance.is_some() && gas_price > U256::ZERO {
-        // cap_to_balance is Some only when called from eth_call and eth_createAccessList
-        // we fall in this branch when user set gas price but not gas limit
-        // before passing the transaction environment to evm, we must set a gas limit
-        // that is capped by the caller's balance
-        // but the from address might have a high balance
-        // we don't want the gas limit to be more than the ceiling
-        let max_gas_limit = caller_gas_allowance(
-            cap_to_balance.unwrap(),
-            value.unwrap_or_default(),
-            gas_price,
-        )?;
-        gas_limit = min(ceiling, max_gas_limit);
+    } else if let Some(cap_to_balance) = cap_to_balance {
+        if gas_price > U256::ZERO {
+            // cap_to_balance is Some only when called from eth_call and eth_createAccessList
+            // we fall in this branch when user set gas price but not gas limit
+            // before passing the transaction environment to evm, we must set a gas limit
+            // that is capped by the caller's balance
+            // but the from address might have a high balance
+            // we don't want the gas limit to be more than the ceiling
+            let max_gas_limit =
+                caller_gas_allowance(cap_to_balance, value.unwrap_or_default(), gas_price)?;
+            gas_limit = min(ceiling, max_gas_limit);
+        }
     }
 
     let gas_priority_fee: Option<u128> = if let Some(gas_priority) = max_priority_fee_per_gas {

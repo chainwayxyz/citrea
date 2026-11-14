@@ -173,7 +173,7 @@ impl Case for BlockchainTestCase {
                 }
 
                 let (mut evm, _, mut storage, _) = get_evm_with_storage(&evm_config);
-                let mut l2_height = 2;
+                let start_l2_height = 2;
 
                 let mut working_set = WorkingSet::new(storage.clone());
                 evm.cfg.set(
@@ -200,7 +200,7 @@ impl Case for BlockchainTestCase {
 
                 let current_spec = SovSpecId::latest();
                 // Decode and insert blocks, creating a chain of blocks for the test case.
-                for block in case.blocks.iter() {
+                for (l2_height, block) in (start_l2_height..).zip(case.blocks.iter()) {
                     let decoded = SealedBlock::<RethBlock>::decode(&mut block.rlp.as_ref())?;
                     let txs = decoded
                         .body()
@@ -222,8 +222,6 @@ impl Case for BlockchainTestCase {
                         l2_height,
                         current_spec,
                     );
-
-                    l2_height += 1;
                 }
 
                 // Validate the post-state for the test case.

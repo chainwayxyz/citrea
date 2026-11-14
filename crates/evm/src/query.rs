@@ -1929,6 +1929,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         let removed = false;
 
         let tx_range = block.transactions;
+        let first_tx = tx_range.start;
         let filter = FilteredParams::new(Some(filter));
         for i in tx_range {
             let receipt = self
@@ -1950,7 +1951,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
                         block_number: Some(block.header.number),
                         block_timestamp: Some(block.header.timestamp),
                         transaction_hash: Some(*tx.signed_transaction.hash()),
-                        transaction_index: Some(i),
+                        transaction_index: Some(i - first_tx),
                         log_index: Some(log_index),
                         removed,
                     });

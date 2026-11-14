@@ -427,7 +427,7 @@ fn choose_utxos(
 
     if !bigger_utxos.is_empty() {
         // sort vec by amount (small first)
-        bigger_utxos.sort_by(|a, b| a.amount.cmp(&b.amount));
+        bigger_utxos.sort_by_key(|a| a.amount);
 
         // single utxo will be enough
         // so return the transaction
@@ -441,7 +441,7 @@ fn choose_utxos(
             .collect();
 
         // sort vec by amount (large first)
-        smaller_utxos.sort_by(|a, b| b.amount.cmp(&a.amount));
+        smaller_utxos.sort_by_key(|b| std::cmp::Reverse(b.amount));
 
         for utxo in smaller_utxos {
             sum += utxo.amount;

@@ -47,6 +47,18 @@ impl<C: sov_modules_api::Context> Evm<C> {
         self.accounts.set(&idx, info, working_set)
     }
 
+    /// Clears an account only if it already has an allocated index.
+    pub fn account_clear_if_exists(
+        &self,
+        address: &Address,
+        working_set: &mut WorkingSet<C::Storage>,
+    ) {
+        if let Some(idx) = self.account_idxs.get(address, working_set) {
+            self.accounts
+                .set(&idx, &AccountInfo::default(), working_set);
+        }
+    }
+
     /// Get the address of a storage key for the given account
     pub fn get_storage_address(account: &Address, key: &U256) -> U256 {
         let mut hasher: sha2::Sha256 = sha2::Digest::new_with_prefix(account.as_slice());

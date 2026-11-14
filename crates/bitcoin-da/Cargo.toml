@@ -13,6 +13,7 @@ repository = { workspace = true }
 [dependencies]
 citrea-common = { path = "../common", optional = true }
 citrea-primitives = { path = "../primitives" }
+sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
 
 anyhow = { workspace = true }
@@ -31,7 +32,7 @@ metrics = { workspace = true, optional = true }
 metrics-derive = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 reth-tasks = { workspace = true, optional = true }
-secp256k1 = { version = "0.29", optional = true, features = ["rand-std", "std", "global-context"] }
+secp256k1 = { version = "0.29.1", optional = true, features = ["rand-std", "std", "global-context"] }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true, features = ["raw_value"] }
 sha2 = { workspace = true }
@@ -43,6 +44,7 @@ bitcoincore-rpc = { workspace = true, optional = true }
 
 [dev-dependencies]
 rand = { workspace = true }
+tempfile = { workspace = true }
 
 [features]
 default = []
@@ -59,6 +61,7 @@ native = [
   "dep:serde_json",
   "sov-rollup-interface/native",
   "dep:citrea-common",
+  "dep:sov-db",
   "dep:bitcoincore-rpc",
   "dep:reqwest",
   "dep:jsonrpsee",

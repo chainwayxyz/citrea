@@ -80,6 +80,25 @@ where
         working_set.get_value(self.prefix(), key, self.codec())
     }
 
+    /// Returns `true` if the map contains a value for the given key.
+    ///
+    /// Unlike [`StateMapAccessor::get`], the stored value is never decoded,
+    /// which matters for maps with large values (e.g. contract bytecode).
+    fn contains_key<Q>(&self, key: &Q, working_set: &mut W) -> bool
+    where
+        Codec: StateCodec,
+        Codec::KeyCodec: EncodeKeyLike<Q, K>,
+        Q: ?Sized,
+    {
+        working_set
+            .get(&StorageKey::new(
+                self.prefix(),
+                key,
+                self.codec().key_codec(),
+            ))
+            .is_some()
+    }
+
     /// Same as [`StateMapAccessor::get`], but also verifies the value with a given function only when the
     /// value is not found in the cache and read from the storage.
     /// This only applies to OffchainWorkingSet.

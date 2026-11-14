@@ -160,7 +160,8 @@ pub trait NodeLedgerOps: SharedLedgerOps + Send + Sync {
         height: Option<u64>,
     ) -> Result<Option<L2HeightAndIndex>>;
 
-    /// Set L2 height by status
+    /// Set L2 height by status at `l1_height`, or at the L1 height of the status's latest row if
+    /// that is higher, so the latest row always holds the status
     fn set_l2_height_status(
         &self,
         status: L2HeightStatus,

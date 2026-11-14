@@ -1,0 +1,36 @@
+[package]
+name = "light-client-proof-mock"
+version = "2.10.0"
+edition = "2021"
+license = "GPL-3.0-only"
+resolver = "2"
+
+[workspace]
+
+[dependencies]
+sp1-zkvm = { version = "=6.10.0", features = ["verify"] }
+
+sov-mock-da = { path = "../../../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
+
+citrea-light-client-prover = { path = "../../../../crates/light-client-prover", default-features = false }
+citrea-primitives = { path = "../../../../crates/primitives" }
+citrea-sp1 = { path = "../../../../crates/sp1" }
+sov-rollup-interface = { path = "../../../../crates/sovereign-sdk/rollup-interface" }
+sov-state = { path = "../../../../crates/sovereign-sdk/module-system/sov-state" }
+
+[features]
+testing = ["citrea-primitives/testing"]
+
+[profile.release]
+debug = 0
+lto = true
+opt-level = 3
+codegen-units = 1
+
+# Guest-only SP1 crypto acceleration; see docs/sp1-precompiles.md.
+[patch.crates-io]
+crypto-bigint = { package = "crypto-bigint", git = "https://github.com/sp1-patches/RustCrypto-bigint", tag = "patch-0.5.5-sp1-6.10.0" }
+sha3 = { package = "sha3", git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha3-0.10.8-sp1-6.10.0" }
+sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", tag = "patch-sha2-0.10.9-sp1-6.10.0" }
+tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", tag = "patch-2.0.2-sp1-6.10.0" }
+k256 = { git = "https://github.com/sp1-patches/elliptic-curves", tag = "patch-k256-13.4-sp1-6.10.0" }

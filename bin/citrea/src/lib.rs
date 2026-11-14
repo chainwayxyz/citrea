@@ -51,9 +51,9 @@ pub fn initialize_logging(level: Level) {
             "alloy_rpc_client=info".to_owned(),
             "alloy_provider=info".to_owned(),
             // Limit output as much as possible, use WARN.
-            "[executor]=info".to_owned(), // risc0 guest code stats logging
-            "risc0_zkvm=warn".to_owned(),
-            "risc0_circuit_rv32im=info".to_owned(),
+            "sp1_sdk=warn".to_owned(),
+            "sp1_prover=warn".to_owned(),
+            "sp1_core_executor=info".to_owned(),
             "guest_execution=info".to_owned(),
             "jsonrpsee-server=info".to_owned(),
             "jsonrpsee-client=info".to_owned(),

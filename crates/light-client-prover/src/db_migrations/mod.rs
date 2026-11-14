@@ -4,12 +4,8 @@
 //! It provides functionality to smoothly upgrade the database schema when needed.
 use std::sync::OnceLock;
 
+use sov_db::ledger_db::migrations::drop_legacy_proving_sessions::DropLegacyProvingSessions;
 use sov_db::ledger_db::migrations::LedgerMigration;
-
-/// Drop session recovery tables
-mod drop_pending_session_recovery_tables;
-
-use drop_pending_session_recovery_tables::DropPendingSessionRecoveryTables;
 
 /// Returns the list of database migrations to apply
 ///
@@ -22,5 +18,5 @@ use drop_pending_session_recovery_tables::DropPendingSessionRecoveryTables;
 pub fn migrations() -> &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'static>> {
     static MIGRATIONS: OnceLock<Vec<Box<dyn LedgerMigration + Send + Sync + 'static>>> =
         OnceLock::new();
-    MIGRATIONS.get_or_init(|| vec![Box::new(DropPendingSessionRecoveryTables)])
+    MIGRATIONS.get_or_init(|| vec![Box::new(DropLegacyProvingSessions)])
 }

@@ -633,3 +633,27 @@ fn test_log_limits() {
         "query exceeds max block range 500"
     );
 }
+
+#[test]
+fn log_transaction_index_matches_receipt() {
+    let (evm, mut working_set, _, _, _, _) = init_evm(SpecId::latest());
+    let filter = Filter {
+        block_option: FilterBlockOption::Range {
+            from_block: Some(BlockNumberOrTag::Number(0)),
+            to_block: Some(BlockNumberOrTag::Latest),
+        },
+        address: FilterSet::default(),
+        topics: Default::default(),
+    };
+    let logs = evm.eth_get_logs(filter, &mut working_set).unwrap();
+    // Block 2 starts after block 1's txs, so a global index would differ from the in-block one.
+    assert!(logs.iter().any(|log| log.block_number == Some(2)));
+
+    for log in logs {
+        let receipt = evm
+            .get_transaction_receipt(log.transaction_hash.unwrap(), &mut working_set)
+            .unwrap()
+            .unwrap();
+        assert_eq!(log.transaction_index, receipt.transaction_index);
+    }
+}

@@ -194,11 +194,13 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
             self.pending_head.set(&block, &mut accessory_state);
 
-            let mut tx_index = start_tx_index;
-            for PendingTransaction {
-                transaction,
-                receipt,
-            } in pending_transactions
+            for (
+                tx_index,
+                PendingTransaction {
+                    transaction,
+                    receipt,
+                },
+            ) in (start_tx_index..).zip(pending_transactions)
             {
                 self.transactions.push(transaction, &mut accessory_state);
                 self.receipts.push(receipt, &mut accessory_state);
@@ -208,8 +210,6 @@ impl<C: sov_modules_api::Context> Evm<C> {
                     &tx_index,
                     &mut accessory_state,
                 );
-
-                tx_index += 1
             }
             self.pending_transactions.clear();
         }

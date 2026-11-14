@@ -23,6 +23,7 @@ use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_prover_storage_manager::ProverStorageManager;
 use sov_rollup_interface::block::{L2Header, SignedL2Header};
 use sov_rollup_interface::da::SequencerCommitment;
+use sov_rollup_interface::fork::{fork_pos_from_block_number, Fork};
 use sov_rollup_interface::stf::StateTransitionError;
 use sov_rollup_interface::zk::batch_proof::input::v3::PrevHashProof;
 use sov_rollup_interface::zk::StorageRootHash;
@@ -77,6 +78,7 @@ fn generate_genesis_config() -> GenesisParams<GenesisConfig<DefaultContext, Mock
     GenesisParams { runtime: genesis }
 }
 
+/// Creates an L2 block under `SpecId::latest()`.
 #[allow(clippy::too_many_arguments)]
 fn create_l2_block(
     stf_blueprint: &mut TestStfBlueprint,
@@ -88,12 +90,37 @@ fn create_l2_block(
     prev_state_root: StorageRootHash,
     block_cache: &mut Vec<(u64, L2Block, Witness, Witness)>,
 ) -> anyhow::Result<()> {
+    create_l2_block_with_spec(
+        stf_blueprint,
+        sequencer_private_key,
+        sequencer_public_key,
+        storage_manager,
+        prover_storage,
+        height,
+        prev_state_root,
+        block_cache,
+        SpecId::latest(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn create_l2_block_with_spec(
+    stf_blueprint: &mut TestStfBlueprint,
+    sequencer_private_key: &K256PrivateKey,
+    sequencer_public_key: &K256PublicKey,
+    storage_manager: &mut ProverStorageManager,
+    prover_storage: ProverStorage,
+    height: u64,
+    prev_state_root: StorageRootHash,
+    block_cache: &mut Vec<(u64, L2Block, Witness, Witness)>,
+    spec: SpecId,
+) -> anyhow::Result<()> {
     let mut working_set = WorkingSet::new(prover_storage.clone());
 
     let l2_block_info = HookL2BlockInfo {
         l2_height: height,
         pre_state_root: prev_state_root,
-        current_spec: SpecId::latest(),
+        current_spec: spec,
         sequencer_pub_key: sequencer_public_key.clone(),
         l1_fee_rate: 128u128,
         timestamp: 10 * (height - 1),
@@ -105,8 +132,7 @@ fn create_l2_block(
     stf_blueprint
         .end_l2_block(l2_block_info, &mut working_set)
         .unwrap();
-    let l2_block_result =
-        stf_blueprint.finalize_l2_block(SpecId::latest(), working_set, prover_storage);
+    let l2_block_result = stf_blueprint.finalize_l2_block(spec, working_set, prover_storage);
 
     let header = L2Header::new(
         height,
@@ -307,13 +333,6 @@ fn test_apply_successful_l2_blocks_from_sequencer_commitments() {
         }
     }
 
-    // From here on, we establish a new base on which the mockZk guest will run
-    // to validate state that has been executed previously.
-    let guest = MockZkGuest::new(input);
-    let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
-    let mut storage_manager = init_storage_manager();
-    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
-
     let first_commitment_block_hashes = block_cache[0..5]
         .iter()
         .map(|(_, block, _, _)| block.hash())
@@ -331,6 +350,47 @@ fn test_apply_successful_l2_blocks_from_sequencer_commitments() {
             .root()
             .unwrap();
 
+    let guest = MockZkGuest::new(input.clone());
+    let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
+    let mut storage_manager = init_storage_manager();
+    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
+
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
+                &state_root,
+                prover_storage,
+                None,
+                None,
+                vec![
+                    SequencerCommitment {
+                        merkle_root: first_commitment_calculated_root,
+                        index: 1,
+                        l2_end_block_number: 5,
+                    },
+                    SequencerCommitment {
+                        merkle_root: second_commitment_calculated_root,
+                        index: 3,
+                        l2_end_block_number: 10,
+                    },
+                ],
+                &[],
+                get_forks(),
+            )
+        },
+        "Sequencer commitments indices must be sequential"
+    );
+
+    // From here on, we establish a new base on which the mockZk guest will run
+    // to validate state that has been executed previously.
+    let guest = MockZkGuest::new(input);
+    let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
+    let mut storage_manager = init_storage_manager();
+    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
     let prover_storage = storage_manager.create_storage_for_l2_height(2);
 
     // Should panic if there is anything wrong. We assume that as long as no panic takes place,
@@ -338,7 +398,7 @@ fn test_apply_successful_l2_blocks_from_sequencer_commitments() {
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
-        Some([0; 32]),
+        [0; 32],
         &state_root,
         prover_storage,
         None,
@@ -357,6 +417,247 @@ fn test_apply_successful_l2_blocks_from_sequencer_commitments() {
         ],
         &[],
         get_forks(),
+    );
+}
+
+/// Proving starts at Tangerine, so the first commitment starts at its activation height, from the
+/// hash and state root of the block before it, and later commitments continue across forks.
+///
+/// Blocks have no transactions, so their state does not depend on the spec: this does not detect
+/// replaying a block under the wrong spec.
+#[test]
+fn test_apply_sequencer_commitments_across_forks() {
+    const FORKS: [Fork; 5] = [
+        Fork::new(SpecId::Kumquat, 0),
+        Fork::new(SpecId::Tangerine, 3),
+        Fork::new(SpecId::Tangelo, 5),
+        Fork::new(SpecId::TangeloSelfdestructFix, 6),
+        Fork::new(SpecId::Pomelo, 7),
+    ];
+    let spec_at = |height| FORKS[fork_pos_from_block_number(&FORKS, height)].spec_id;
+
+    let sequencer_private_key = K256PrivateKey::generate();
+    let sequencer_public_key = sequencer_private_key.pub_key();
+
+    let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
+    let mut storage_manager = init_storage_manager();
+    let (_, mut prev_state_root) = init_chain(&mut storage_manager, &stf_blueprint);
+
+    // The verifier's chain, which stops at the state its first commitment builds on.
+    let mut verifier_blueprint: TestStfBlueprint = TestStfBlueprint::default();
+    let mut verifier_storage_manager = init_storage_manager();
+    init_chain(&mut verifier_storage_manager, &verifier_blueprint);
+
+    let mut block_cache = vec![];
+    let mut verifier_block_cache = vec![];
+    for height in 1..=2 {
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        let verifier_storage = verifier_storage_manager.create_storage_for_next_l2_height();
+        create_l2_block_with_spec(
+            &mut verifier_blueprint,
+            &sequencer_private_key,
+            &sequencer_public_key,
+            &mut verifier_storage_manager,
+            verifier_storage,
+            height,
+            prev_state_root,
+            &mut verifier_block_cache,
+            spec_at(height),
+        )
+        .unwrap();
+        create_l2_block_with_spec(
+            &mut stf_blueprint,
+            &sequencer_private_key,
+            &sequencer_public_key,
+            &mut storage_manager,
+            prover_storage,
+            height,
+            prev_state_root,
+            &mut block_cache,
+            spec_at(height),
+        )
+        .unwrap();
+        prev_state_root = block_cache.last().unwrap().1.state_root();
+    }
+    let initial_state_root = prev_state_root;
+    let initial_prev_l2_block_hash = block_cache.last().unwrap().1.hash();
+
+    for height in 3..=10 {
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        create_l2_block_with_spec(
+            &mut stf_blueprint,
+            &sequencer_private_key,
+            &sequencer_public_key,
+            &mut storage_manager,
+            prover_storage,
+            height,
+            prev_state_root,
+            &mut block_cache,
+            spec_at(height),
+        )
+        .unwrap();
+        prev_state_root = block_cache.last().unwrap().1.state_root();
+    }
+
+    // Heights 3-6 cross Tangelo and its fix, heights 7-10 are Pomelo.
+    let commitment_blocks = [&block_cache[2..6], &block_cache[6..10]];
+
+    let mut input: Vec<u8> = vec![];
+    input.extend(&borsh::to_vec(&2u32).unwrap());
+    for blocks in commitment_blocks {
+        input.extend(&borsh::to_vec(&(blocks.len() as u32)).unwrap());
+        for (height, l2_block, witness, offchain_witness) in blocks {
+            input.extend(&borsh::to_vec(&height).unwrap());
+            input
+                .extend_from_slice(&borsh::to_vec(&(l2_block, witness, offchain_witness)).unwrap());
+        }
+    }
+
+    let merkle_root = |blocks: &[(u64, L2Block, Witness, Witness)]| {
+        let hashes = blocks
+            .iter()
+            .map(|(_, block, _, _)| block.hash())
+            .collect::<Vec<[u8; 32]>>();
+        MerkleTree::<Sha256>::from_leaves(&hashes).root().unwrap()
+    };
+    let commitments = vec![
+        SequencerCommitment {
+            merkle_root: merkle_root(commitment_blocks[0]),
+            index: 1,
+            l2_end_block_number: 6,
+        },
+        SequencerCommitment {
+            merkle_root: merkle_root(commitment_blocks[1]),
+            index: 2,
+            l2_end_block_number: 10,
+        },
+    ];
+
+    let guest = MockZkGuest::new(input);
+    let pre_state = verifier_storage_manager.create_storage_for_next_l2_height();
+    let output = verifier_blueprint.apply_l2_blocks_from_sequencer_commitments(
+        &guest,
+        &sequencer_public_key.pub_key.to_sec1_bytes(),
+        initial_prev_l2_block_hash,
+        &initial_state_root,
+        pre_state,
+        None,
+        None,
+        commitments,
+        &[],
+        &FORKS,
+    );
+
+    assert_eq!(output.last_l2_height, 10);
+    assert_eq!(output.final_l2_block_hash, block_cache[9].1.hash());
+    assert_eq!(
+        output.state_roots,
+        vec![
+            initial_state_root,
+            block_cache[5].1.state_root(),
+            block_cache[9].1.state_root(),
+        ]
+    );
+}
+
+/// A malicious prover can append an extra sequencer commitment that reuses the
+/// index of the canonical one it follows, but claims a higher L2 end height.
+///
+/// Both commitments then stay sequential by L2 height, so only the index
+/// assertion catches this. The public output built from the first and last
+/// input commitments would otherwise carry an index range of a single
+/// commitment while carrying two commitment hashes, and a terminal L2 height
+/// beyond the canonical commitment.
+#[test]
+fn test_apply_l2_blocks_rejects_duplicate_sequencer_commitment_index() {
+    let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
+
+    let mut storage_manager = init_storage_manager();
+    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
+
+    let sequencer_private_key = K256PrivateKey::generate();
+    let sequencer_public_key = sequencer_private_key.pub_key();
+
+    let mut block_cache = vec![];
+    let mut prev_state_root = state_root;
+    for i in 1..=10 {
+        let prover_storage = storage_manager.create_storage_for_next_l2_height();
+        create_l2_block(
+            &mut stf_blueprint,
+            &sequencer_private_key,
+            &sequencer_public_key,
+            &mut storage_manager,
+            prover_storage,
+            i,
+            prev_state_root,
+            &mut block_cache,
+        )
+        .unwrap();
+
+        prev_state_root = block_cache.last().unwrap().1.state_root();
+    }
+
+    let mut input: Vec<u8> = vec![];
+    // Groups count
+    input.extend(&borsh::to_vec(&2u32).unwrap());
+    for i in 0..2 {
+        // State change count
+        input.extend(&borsh::to_vec(&5u32).unwrap());
+        // Blocks
+        for (height, l2_block, witness, offchain_witness) in &block_cache[i * 5..(i + 1) * 5] {
+            input.extend(&borsh::to_vec(&height).unwrap());
+            input
+                .extend_from_slice(&borsh::to_vec(&(l2_block, witness, offchain_witness)).unwrap());
+        }
+    }
+
+    let commitment_root = |blocks: &[(u64, L2Block, Witness, Witness)]| {
+        MerkleTree::<Sha256>::from_leaves(
+            &blocks
+                .iter()
+                .map(|(_, block, _, _)| block.hash())
+                .collect::<Vec<[u8; 32]>>(),
+        )
+        .root()
+        .unwrap()
+    };
+    let canonical_root = commitment_root(&block_cache[0..5]);
+    let duplicate_root = commitment_root(&block_cache[5..]);
+
+    let guest = MockZkGuest::new(input);
+    let mut stf_blueprint: TestStfBlueprint = TestStfBlueprint::default();
+    let mut storage_manager = init_storage_manager();
+    let (_, state_root) = init_chain(&mut storage_manager, &stf_blueprint);
+    let prover_storage = storage_manager.create_storage_for_l2_height(2);
+
+    assert_panics_with_message!(
+        {
+            stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
+                &guest,
+                &sequencer_public_key.pub_key.to_sec1_bytes(),
+                [0; 32],
+                &state_root,
+                prover_storage,
+                None,
+                None,
+                vec![
+                    SequencerCommitment {
+                        merkle_root: canonical_root,
+                        index: 1,
+                        l2_end_block_number: 5,
+                    },
+                    // Same index as the canonical commitment, higher end height.
+                    SequencerCommitment {
+                        merkle_root: duplicate_root,
+                        index: 1,
+                        l2_end_block_number: 10,
+                    },
+                ],
+                &[],
+                get_forks(),
+            )
+        },
+        "Sequencer commitments indices must be sequential"
     );
 }
 
@@ -436,7 +737,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -459,7 +760,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
-        Some([0; 32]),
+        [0; 32],
         &state_root,
         prover_storage,
         None,
@@ -481,7 +782,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &block_cache[4].1.header.inner.state_root(),
                 prover_storage,
                 Some(SequencerCommitment {
@@ -514,7 +815,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &block_cache[4].1.header.inner.state_root(),
                 prover_storage,
                 Some(SequencerCommitment {
@@ -555,7 +856,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
-        Some([0; 32]),
+        [0; 32],
         &state_root,
         prover_storage.clone(),
         None,
@@ -585,7 +886,7 @@ fn test_apply_successful_apply_sequencer_commitments_with_previous_commitment() 
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
-        Some([0; 32]),
+        [0; 32],
         &block_cache[4].1.state_root(),
         prover_storage,
         Some(SequencerCommitment {
@@ -677,7 +978,7 @@ fn test_wrong_prev_hash_proof() {
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
-        Some([0; 32]),
+        [0; 32],
         &state_root,
         prover_storage,
         None,
@@ -707,7 +1008,7 @@ fn test_wrong_prev_hash_proof() {
     stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
         &guest,
         &sequencer_public_key.pub_key.to_sec1_bytes(),
-        Some([0; 32]),
+        [0; 32],
         &block_cache[4].1.state_root(),
         prover_storage,
         Some(SequencerCommitment {
@@ -737,7 +1038,7 @@ fn test_wrong_prev_hash_proof() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &block_cache[4].1.state_root(),
                 prover_storage,
                 Some(SequencerCommitment {
@@ -769,7 +1070,7 @@ fn test_wrong_prev_hash_proof() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &block_cache[4].1.state_root(),
                 prover_storage,
                 Some(SequencerCommitment {
@@ -814,7 +1115,7 @@ fn test_panic_empty_sequencer_commitments() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -844,7 +1145,7 @@ fn test_panic_invalid_sequencer_public_key() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &[0u8; 10], // Invalid key length
-                Some([0; 32]),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -939,7 +1240,7 @@ fn test_panic_l2_block_processing_failure() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1041,7 +1342,7 @@ fn test_panic_l2_block_timestamp_validation_failure() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1143,7 +1444,7 @@ fn test_panic_l2_block_prev_hash_failure() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1237,7 +1538,7 @@ fn test_panic_state_root_assertion_failure() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1298,7 +1599,7 @@ fn test_panic_merkle_root_assertion_failure() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1390,7 +1691,7 @@ fn test_panic_l2_block_height_jump() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,
@@ -1491,7 +1792,7 @@ fn test_panic_state_root_mismatch_assertion() {
             stf_blueprint.apply_l2_blocks_from_sequencer_commitments(
                 &guest,
                 &sequencer_public_key.pub_key.to_sec1_bytes(),
-                Some([0; 32]),
+                [0; 32],
                 &state_root,
                 prover_storage,
                 None,

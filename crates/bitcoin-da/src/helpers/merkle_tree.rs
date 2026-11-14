@@ -75,6 +75,16 @@ impl BitcoinMerkleTree {
         self.nodes[self.nodes.len() - 1][0]
     }
 
+    /// Returns the number of hashing levels in the Merkle tree.
+    pub(crate) fn depth(&self) -> usize {
+        self.nodes.len() - 1
+    }
+
+    /// Returns the leaf hashes in the order used to build the Merkle tree.
+    pub(crate) fn leaves(&self) -> &[[u8; 32]] {
+        &self.nodes[0]
+    }
+
     #[cfg(feature = "native")]
     /// Get path by the index
     pub fn get_idx_path(&self, index: u32) -> Vec<[u8; 32]> {
@@ -110,7 +120,7 @@ impl BitcoinMerkleTree {
         let mut index = idx;
         let mut level: u32 = 0;
         while level < merkle_proof.len() as u32 {
-            if index % 2 == 0 {
+            if index.is_multiple_of(2) {
                 preimage[..32].copy_from_slice(&combined_hash);
                 preimage[32..].copy_from_slice(&merkle_proof[level as usize]);
                 combined_hash = calculate_double_sha256(&preimage);
@@ -201,6 +211,15 @@ mod tests {
     fn test_merkle_tree_single_tx() {
         let tx = [5; 32];
         assert_eq!(BitcoinMerkleTree::new(vec![tx]).root(), tx);
+    }
+
+    #[test]
+    fn test_bitcoin_merkle_tree_depth() {
+        let cases = [(1, 0), (2, 1), (3, 2), (4, 2), (5, 3), (8, 3), (9, 4)];
+        for (leaf_count, expected_depth) in cases {
+            let leaves = (0..leaf_count).map(|i| [i as u8; 32]).collect();
+            assert_eq!(BitcoinMerkleTree::new(leaves).depth(), expected_depth);
+        }
     }
 
     #[test]

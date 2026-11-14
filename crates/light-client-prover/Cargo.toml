@@ -13,7 +13,7 @@ repository.workspace = true
 bitcoin-da = { path = "../bitcoin-da", optional = true }
 citrea-common = { path = "../common", optional = true }
 citrea-primitives = { path = "../primitives" }
-citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof" }
+citrea-sp1-batch-proof = { path = "../../guests/sp1/batch-proof" }
 prover-services = { path = "../prover-services", optional = true }
 
 # Sov SDK deps
@@ -70,6 +70,8 @@ native = [
   "dep:reth-tasks",
   "dep:tokio",
   "dep:tracing",
+  "bitcoin-da/native",
+  "sov-mock-da/native",
   "sov-rollup-interface/native",
   "dep:sov-state",
 ]

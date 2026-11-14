@@ -12,9 +12,6 @@ pub enum Network {
     Devnet,
     /// Nightly
     Nightly,
-    /// All forks from genesis to Nightly
-    /// This is used for testing purposes only.
-    TestNetworkWithForks,
 }
 
 impl Display for Network {
@@ -31,7 +28,6 @@ impl Network {
             b"testnet" => Some(Network::Testnet),
             b"devnet" => Some(Network::Devnet),
             b"nightly" => Some(Network::Nightly),
-            b"testnetworkwithforks" => Some(Network::TestNetworkWithForks),
             _ => None,
         }
     }

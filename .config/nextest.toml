@@ -13,6 +13,8 @@ max-threads = 15
 [[profile.default.overrides]]
 filter = 'binary_id(citrea::bitcoin_e2e)'
 test-group = 'bitcoin-e2e'
+# Instrumented coverage runs execute SP1 guests for longer than the default six minutes.
+slow-timeout = { period = "5m", terminate-after = 4 }
 priority = 90
 
 [test-groups.bitcoin-e2e]
@@ -21,6 +23,8 @@ max-threads = 15
 [[profile.default.overrides]]
 filter = 'binary_id(citrea::mock_e2e)'
 test-group = 'mock-e2e'
+# Instrumented coverage runs execute SP1 guests for longer than the default six minutes.
+slow-timeout = { period = "5m", terminate-after = 4 }
 priority = 80
 
 [test-groups.mock-e2e]

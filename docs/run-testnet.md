@@ -207,9 +207,13 @@ Your full node should be serving RPC at `http://0.0.0.0:8080` now.
 ### Option 2: Build from source
 
 
-#### Step 2.1: Install Rust
+#### Step 2.1: Install prerequisites
 
-If you don't have it, install it from [here](https://www.rust-lang.org/tools/install).
+If you don't have Rust, install it from [here](https://www.rust-lang.org/tools/install).
+
+Install the Protocol Buffers compiler (`protoc`) and ensure it is available on your `PATH`. On Ubuntu/Debian, run `sudo apt-get install protobuf-compiler`; on macOS, run `brew install protobuf`. Verify the installation with `protoc --version`.
+
+`protoc` is required by the SP1 SDK dependency even when building with `SKIP_GUEST_BUILD=1`.
 
 
 #### Step 2.2: Clone the source code

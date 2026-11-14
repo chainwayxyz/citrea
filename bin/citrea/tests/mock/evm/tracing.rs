@@ -1364,7 +1364,7 @@ async fn test_pre_state_tracer_disable_code() -> Result<(), Box<dyn std::error::
     // Verify no code is present in either pre or post states
     if let GethTrace::PreStateTracer(PreStateFrame::Diff(diff_mode)) = trace_result {
         // Check that no account in pre state has code
-        for (_, account_state) in diff_mode.pre.iter() {
+        for account_state in diff_mode.pre.values() {
             assert!(
                 account_state.code.is_none(),
                 "Code should be None in pre state when disableCode=true"
@@ -1372,7 +1372,7 @@ async fn test_pre_state_tracer_disable_code() -> Result<(), Box<dyn std::error::
         }
 
         // Check that no account in post state has code
-        for (_, account_state) in diff_mode.post.iter() {
+        for account_state in diff_mode.post.values() {
             assert!(
                 account_state.code.is_none(),
                 "Code should be None in post state when disableCode=true"

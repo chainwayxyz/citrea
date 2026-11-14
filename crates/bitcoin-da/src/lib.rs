@@ -86,3 +86,6 @@ pub const REVEAL_OUTPUT_AMOUNT: u64 = 546;
 #[cfg(feature = "native")]
 /// This is added to reveal output in order to bruteforce nonces for wtxid prefixes.
 const REVEAL_OUTPUT_THRESHOLD: u64 = 2000;
+
+#[cfg(feature = "native")]
+pub mod db_migrations;

@@ -883,6 +883,17 @@ impl NodeLedgerOps for LedgerDB {
         l1_height: u64,
         val: L2HeightAndIndex,
     ) -> anyhow::Result<()> {
+        // The status is read from the row with the highest L1 height. A rescan of L1 blocks
+        // processed before would write under a later row, which hides it, so it writes there.
+        let mut iter = self
+            .db
+            .iter_with_direction::<L2StatusHeights>(Default::default(), ScanDirection::Backward)?;
+        iter.seek_for_prev(&(status, u64::MAX))?;
+        let l1_height = match iter.next().transpose()? {
+            Some(item) if item.key.0 == status => l1_height.max(item.key.1),
+            _ => l1_height,
+        };
+
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<L2StatusHeights>(&(status, l1_height), &val)?;
         self.db.write_schemas(schema_batch)?;

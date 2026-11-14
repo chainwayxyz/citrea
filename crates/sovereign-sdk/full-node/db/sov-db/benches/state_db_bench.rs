@@ -1,11 +1,10 @@
 extern crate criterion;
 
+use std::hint::black_box;
 use std::sync::Arc;
 
 use criterion::measurement::WallTime;
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkGroup, BenchmarkId, Criterion,
-};
+use criterion::{criterion_group, criterion_main, BenchmarkGroup, BenchmarkId, Criterion};
 use jmt::storage::TreeWriter;
 use jmt::{JellyfishMerkleTree, KeyHash};
 use rand::rngs::StdRng;

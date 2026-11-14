@@ -14,12 +14,12 @@ use bitcoin::hashes::Hash;
 use bitcoincore_rpc::RpcApi;
 use citrea_batch_prover::rpc::BatchProverRpcClient;
 use citrea_batch_prover::PartitionMode;
-use citrea_common::config::risc0::Risc0HostConfig;
+use citrea_common::config::sp1::SP1HostConfig;
 use citrea_common::FromEnv;
 use citrea_e2e::bitcoin::DEFAULT_FINALITY_DEPTH;
 use citrea_e2e::config::{
-    BatchProverConfig, LightClientProverConfig, ProverGuestRunConfig, SequencerConfig,
-    SequencerMempoolConfig, TestCaseConfig, TestCaseEnv,
+    BatchProverConfig, LightClientProverConfig, SequencerConfig, SequencerMempoolConfig,
+    TestCaseConfig, TestCaseEnv,
 };
 use citrea_e2e::framework::TestFramework;
 use citrea_e2e::test_case::{TestCase, TestCaseRunner};
@@ -27,9 +27,8 @@ use citrea_e2e::traits::{NodeT, Restart};
 use citrea_e2e::Result;
 use citrea_fullnode::rpc::FullNodeRpcClient;
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
-use citrea_risc0_adapter::host::Risc0Host;
 use citrea_sequencer::SequencerRpcClient;
-use risc0_zkvm::Digest;
+use citrea_sp1::host::SP1Host;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::Zkvm as _;
 use sov_rollup_interface::zk::batch_proof::output::BatchProofCircuitOutput;
@@ -162,6 +161,119 @@ impl TestCase for BasicProverTest {
 #[tokio::test]
 async fn basic_prover_test() -> Result<()> {
     TestCaseRunner::new(BasicProverTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+/// Regression test for EIP-161: touching empty accounts should not bloat state diff.
+/// Currently this is expected to fail after the fix, since we assert the diff is larger.
+struct TouchAccountsStateDiffTest;
+
+#[async_trait]
+impl TestCase for TouchAccountsStateDiffTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            with_full_node: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 1,
+            ..Default::default()
+        }
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        Some(170)
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let full_node = f.full_node.as_ref().unwrap();
+
+        let seq_test_client = make_test_client(SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        ))
+        .await?;
+
+        for _ in 0..10 {
+            let _ = seq_test_client
+                .send_eth(seq_test_client.from_addr, None, None, None, 0)
+                .await?;
+        }
+        sequencer.client.send_publish_batch_request().await?;
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        let proofs = wait_for_zkproofs(full_node, finalized_height, None, 1).await?;
+        let proof1 = &proofs[0];
+
+        for _ in 0..10 {
+            let _ = seq_test_client
+                .send_eth(Address::random(), None, None, None, 0)
+                .await?;
+        }
+        sequencer.client.send_publish_batch_request().await?;
+
+        da.wait_mempool_len(2, None).await?;
+
+        // Finalize commitments.
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        batch_prover
+            .wait_for_l1_height(finalized_height, None)
+            .await?;
+
+        da.wait_mempool_len(2, None).await?;
+
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        let finalized_height = da.get_finalized_height(None).await?;
+
+        let proofs = wait_for_zkproofs(full_node, finalized_height, None, 1).await?;
+        let proof2 = &proofs[0];
+
+        // Make sure touched empty account are not committed to state diff as per EIP-161
+        assert_eq!(
+            proof1
+                .proof_output
+                .state_diff
+                .iter()
+                .filter(|(k, _v)| k.starts_with(b"E/a"))
+                .count(),
+            proof2
+                .proof_output
+                .state_diff
+                .iter()
+                .filter(|(k, _v)| k.starts_with(b"E/a"))
+                .count()
+        );
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn touch_accounts_state_diff_test() -> Result<()> {
+    TestCaseRunner::new(TouchAccountsStateDiffTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
@@ -381,99 +493,6 @@ async fn basic_prover_test() -> Result<()> {
 //         .await
 // }
 
-struct LocalProvingTest;
-
-#[async_trait]
-impl TestCase for LocalProvingTest {
-    fn test_config() -> TestCaseConfig {
-        TestCaseConfig {
-            with_sequencer: true,
-            with_batch_prover: true,
-            with_full_node: true,
-            ..Default::default()
-        }
-    }
-
-    fn test_env() -> TestCaseEnv {
-        TestCaseEnv {
-            test: vec![("BONSAI_API_URL", ""), ("BONSAI_API_KEY", "")],
-            ..Default::default()
-        }
-    }
-
-    fn batch_prover_config() -> BatchProverConfig {
-        BatchProverConfig {
-            proving_mode: ProverGuestRunConfig::Prove,
-            ..Default::default()
-        }
-    }
-
-    fn sequencer_config() -> SequencerConfig {
-        SequencerConfig {
-            // Made this 1 or-else proving takes forever
-            max_l2_blocks_per_commitment: 1,
-            ..Default::default()
-        }
-    }
-
-    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-        // citrea::initialize_logging(tracing::Level::INFO);
-
-        let da = f.bitcoin_nodes.get(0).unwrap();
-        let sequencer = f.sequencer.as_ref().unwrap();
-        let batch_prover = f.batch_prover.as_ref().unwrap();
-        let full_node = f.full_node.as_ref().unwrap();
-
-        let max_l2_blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
-        // Generate l2 blocks to invoke commitment creation
-        for _ in 0..max_l2_blocks_per_commitment {
-            sequencer.client.send_publish_batch_request().await?;
-        }
-
-        // Wait for commitment tx to hit mempool
-        da.wait_mempool_len(2, None).await?;
-
-        // Make commitment tx into a finalized block
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-
-        let finalized_height = da.get_finalized_height(None).await?;
-        // Wait for batch prover to process the proof
-        batch_prover
-            .wait_for_l1_height(finalized_height, Some(Duration::from_secs(7200)))
-            .await?;
-
-        // Wait for batch proof tx to hit mempool
-        da.wait_mempool_len(2, None).await?;
-
-        // Make batch proof tx into a finalized block
-        da.generate(DEFAULT_FINALITY_DEPTH).await?;
-
-        let finalized_height = da.get_finalized_height(None).await?;
-        // Wait for full node to see zkproofs
-        let proofs = wait_for_zkproofs(
-            full_node,
-            finalized_height,
-            Some(Duration::from_secs(7200)),
-            1,
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(proofs.len(), 1);
-
-        Ok(())
-    }
-}
-
-#[tokio::test]
-#[ignore]
-async fn local_proving_test() -> Result<()> {
-    TestCaseRunner::new(LocalProvingTest)
-        .set_citrea_path(get_citrea_path())
-        .run()
-        .await
-}
-
 struct ParallelProvingTest;
 
 #[async_trait]
@@ -574,242 +593,6 @@ async fn parallel_proving_test() -> Result<()> {
         .run()
         .await
 }
-
-// struct ForkElfSwitchingTest;
-
-// #[async_trait]
-// impl TestCase for ForkElfSwitchingTest {
-//     fn test_config() -> TestCaseConfig {
-//         TestCaseConfig {
-//             with_batch_prover: true,
-//             with_full_node: true,
-//             with_light_client_prover: true,
-//             mode: CitreaMode::DevAllForks,
-//             ..Default::default()
-//         }
-//     }
-
-//     fn light_client_prover_config() -> LightClientProverConfig {
-//         LightClientProverConfig {
-//             initial_da_height: 171,
-//             ..Default::default()
-//         }
-//     }
-
-//     fn sequencer_config() -> SequencerConfig {
-//         let kumquat_height = ForkManager::new(get_forks(), 0)
-//             .next_fork()
-//             .unwrap()
-//             .activation_height;
-
-//         // Set just below kumquat height so we can generate first soft com txs in genesis
-//         // and second batch above kumquat
-//         SequencerConfig {
-//             max_l2_blocks_per_commitment: kumquat_height - 5,
-//             ..Default::default()
-//         }
-//     }
-
-//     async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
-//         let da = f.bitcoin_nodes.get(0).unwrap();
-//         let sequencer = f.sequencer.as_ref().unwrap();
-//         let batch_prover = f.batch_prover.as_ref().unwrap();
-//         let full_node = f.full_node.as_ref().unwrap();
-//         let light_client_prover = f.light_client_prover.as_ref().unwrap();
-
-//         // send evm tx
-//         let evm_client = make_test_client(SocketAddr::new(
-//             sequencer.config().rpc_bind_host().parse()?,
-//             sequencer.config().rpc_bind_port(),
-//         ))
-//         .await?;
-
-//         let pending_evm_tx = evm_client
-//             .send_eth(Address::random(), None, None, None, 100)
-//             .await
-//             .unwrap();
-
-//         let min_l2_blocks = sequencer.max_l2_blocks_per_commitment();
-
-//         for _ in 0..min_l2_blocks {
-//             sequencer.client.send_publish_batch_request().await?;
-//         }
-
-//         // assert that evm tx is mined
-//         let evm_tx = evm_client
-//             .eth_get_transaction_by_hash(*pending_evm_tx.tx_hash(), None)
-//             .await
-//             .unwrap();
-
-//         assert!(evm_tx.block_number.is_some());
-
-//         let height = sequencer
-//             .client
-//             .ledger_get_head_l2_block_height()
-//             .await?;
-
-//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Genesis);
-
-//         // Generate softcom in kumquat
-//         for _ in 0..min_l2_blocks {
-//             sequencer.client.send_publish_batch_request().await?;
-//         }
-
-//         let height = sequencer
-//             .client
-//             .ledger_get_head_l2_block_height()
-//             .await?;
-//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Kumquat);
-
-//         // Generate softcom in fork2
-//         for _ in 0..min_l2_blocks {
-//             sequencer.client.send_publish_batch_request().await?;
-//         }
-
-//         let last_sc_before_fork2 = sequencer
-//             .client
-//             .http_client()
-//             .get_l2_block_by_number(U64::from(199u64))
-//             .await
-//             .unwrap()
-//             .unwrap();
-
-//         // the last tx of last l2 block before fork2 should be the change authority sov tx
-//         let last_tx_hex = last_sc_before_fork2
-//             .clone()
-//             .txs
-//             .clone()
-//             .unwrap()
-//             .last()
-//             .expect("should have last tx")
-//             .clone();
-
-//         let tx_vec = last_tx_hex.tx.clone();
-
-//         let tx = Transaction::try_from_slice(&tx_vec).expect("Should be the tx");
-
-//         let k256_pub_key_sequencer = K256PublicKey::try_from(
-//             sequencer
-//                 .config()
-//                 .rollup
-//                 .public_keys
-//                 .sequencer_public_key
-//                 .as_slice(),
-//         )
-//         .unwrap();
-
-//         let address = k256_pub_key_sequencer.to_address::<<DefaultContext as Spec>::Address>();
-
-//         // Going to ignore the first byte here because it's the call prefix
-//         // It is an enum of modules:
-//         // 0 is accounts,1 is evm, 2 is l2 block rule enforcer
-//         // assert the first byte is 2 as in sc rule enforcer
-//         assert_eq!(tx.runtime_msg()[0], 2);
-
-//         let change_authority_call_message: l2_block_rule_enforcer::CallMessage
-//         // Going to ignore the first byte here because it's the call prefix as explained above
-//         = l2_block_rule_enforcer::CallMessage::try_from_slice(&tx.runtime_msg()[1..])
-//             .expect("Should be the tx");
-
-//         match change_authority_call_message {
-//             l2_block_rule_enforcer::CallMessage::ChangeAuthority { new_authority } => {
-//                 assert_eq!(new_authority, address);
-//                 println!("New authority: {:?}", new_authority);
-//             }
-//             _ => panic!("Should be change authority"),
-//         }
-
-//         let height = sequencer
-//             .client
-//             .ledger_get_head_l2_block_height()
-//             .await?;
-//         assert_eq!(fork_from_block_number(height).spec_id, SpecId::Fork2);
-
-//         da.wait_mempool_len(6, None).await?;
-
-//         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-
-//         let finalized_height = da.get_finalized_height(None).await?;
-
-//         batch_prover
-//             .wait_for_l1_height(finalized_height, None)
-//             .await?;
-
-//         // Wait for batch proof tx to hit mempool
-//         da.wait_mempool_len(6, None).await?;
-//         da.generate(DEFAULT_FINALITY_DEPTH).await?;
-
-//         full_node
-//             .wait_for_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH, None)
-//             .await?;
-//         let proofs = wait_for_zkproofs(full_node, finalized_height + DEFAULT_FINALITY_DEPTH, None, 3)
-//             .await
-//             .unwrap();
-
-//         assert_eq!(proofs.len(), 3);
-//         assert_eq!(
-//             SpecId::from_u8(
-//                 proofs[0]
-//                     .proof_output
-//                     .last_active_spec_id
-//                     .expect("should have field")
-//                     .to()
-//             )
-//             .expect("should be valid"),
-//             SpecId::Genesis
-//         );
-//         assert_eq!(
-//             fork_from_block_number(
-//                 proofs[1]
-//                     .proof_output
-//                     .last_l2_height
-//                     .expect("should have field")
-//                     .to()
-//             )
-//             .spec_id,
-//             SpecId::Kumquat
-//         );
-//         assert_eq!(
-//             fork_from_block_number(proofs[2].proof_output.last_l2_height.unwrap().to()).spec_id,
-//             SpecId::Fork2
-//         );
-
-//         light_client_prover
-//             .wait_for_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH, None)
-//             .await?;
-//         let lcp = light_client_prover
-//             .client
-//             .http_client()
-//             .get_light_client_proof_by_l1_height(finalized_height + DEFAULT_FINALITY_DEPTH)
-//             .await
-//             .unwrap()
-//             .unwrap();
-
-//         assert!(lcp
-//             .light_client_proof_output
-//             .unchained_batch_proofs_info
-//             .is_empty());
-
-//         assert_eq!(
-//             lcp.light_client_proof_output.l2_state_root.to_vec(),
-//             proofs[2].proof_output.final_state_root
-//         );
-
-//         Ok(())
-//     }
-// }
-
-// // ignoring this test now as we won't be supporting backwards compatibility for proofs.
-// #[tokio::test]
-// #[ignore]
-// async fn test_fork_elf_switching() -> Result<()> {
-//     use_network_forks(Network::TestNetworkWithForks);
-
-//     TestCaseRunner::new(ForkElfSwitchingTest)
-//         .set_citrea_path(get_citrea_path())
-//         .run()
-//         .await
-// }
 
 struct L1HashOutputTest;
 
@@ -1262,26 +1045,27 @@ impl TestCase for BatchProverCreateInputTest {
 
         assert_eq!(inputs.len(), 1);
 
-        let code_commitment = Digest::new(citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ID);
+        let code_commitment = citrea_sp1_batch_proof::BATCH_PROOF_BITCOIN_ID;
 
-        // Instantiate Risc0Host
+        // Instantiate SP1Host
         let network = Network::Nightly;
 
-        let risc0_config = Risc0HostConfig::from_env().expect("Failed to load risc0 config");
-        let mut risc0_host = Risc0Host::new(network, risc0_config).await;
+        let sp1_config = SP1HostConfig::from_env().expect("Failed to load sp1 config");
+        let mut sp1_host = SP1Host::new(network, sp1_config);
 
         for input in inputs {
             // Decode raw circuit input
             let raw_input = BASE64_STANDARD.decode(input).unwrap();
 
-            // Add input to Risc0Host
-            risc0_host.add_hint(raw_input);
+            // Add input to SP1Host
+            sp1_host.add_hint(raw_input);
 
             // Run the proof generation
-            let proof = risc0_host
+            let proof = sp1_host
                 .run(
                     Uuid::new_v4(),
-                    citrea_risc0_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                    citrea_sp1_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                    citrea_sp1_batch_proof::BATCH_PROOF_BITCOIN_ID,
                     ReceiptType::Groth16,
                     false,
                 )
@@ -1291,10 +1075,10 @@ impl TestCase for BatchProverCreateInputTest {
                 .expect("Proof channel should not close");
 
             let proof = proof.proof;
-            let output: BatchProofCircuitOutput = Risc0Host::extract_output(&proof).unwrap();
+            let output: BatchProofCircuitOutput = SP1Host::extract_output(&proof).unwrap();
 
             // Verify the proof
-            Risc0Host::verify(proof.as_slice(), &code_commitment, true)
+            SP1Host::verify(proof.as_slice(), &code_commitment, true)
                 .expect("Proof verification failed");
 
             assert_eq!(output.last_l2_height(), max_l2_blocks_per_commitment);
@@ -1341,6 +1125,420 @@ impl TestCase for BatchProverCreateInputTest {
 #[tokio::test]
 async fn batch_prover_create_input_test() -> Result<()> {
     TestCaseRunner::new(BatchProverCreateInputTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+/// Init code returning a runtime that calls `calldata[0..32]` (an address) with
+/// `calldata[32..]`, then stores `n` in slot 0 and keccak256(returndata ‖ success) in
+/// slot `n`, so every precompile result becomes part of the state root:
+///
+/// ```text
+/// calldatacopy(0, 32, calldatasize - 32)
+/// ok := call(gas, calldataload(0), 0, 0, calldatasize - 32, 0, 0)
+/// returndatacopy(0, 0, returndatasize); mstore(returndatasize, ok)
+/// n := sload(0) + 1; sstore(0, n); sstore(n, keccak256(0, returndatasize + 32))
+/// ```
+const PRECOMPILE_PROBE: &str = "6035600c60003960356000f3\
+     602036038060206000376000600082600060006000355af190503d600060003e3d523d602001600020600054600101806000555500";
+/// Enough for the most expensive vector, so no precompile fails for lack of gas.
+const PRECOMPILE_PROBE_GAS: u64 = 2_000_000;
+
+#[derive(Clone, Copy, Debug)]
+enum PrecompileOutcome {
+    Output,
+    EmptyOutput,
+    Error,
+}
+
+/// Edge-case inputs for every precompile, with their expected outcome on the node.
+fn precompile_vectors() -> Vec<(&'static str, u16, Vec<u8>, PrecompileOutcome)> {
+    use PrecompileOutcome::*;
+
+    let h = |s: &str| hex::decode(s).unwrap();
+    let word = |v: u64| U256::from(v).to_be_bytes::<32>().to_vec();
+    let cat = |parts: &[&[u8]]| parts.concat();
+
+    // ecrecover: a high-s signature, and its low-s counterpart.
+    let secp_n = U256::from_be_slice(&h(
+        "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141",
+    ));
+    let hash = h("18c547e4f7b0f325ad1e56f57e26c745b09a3e503d86e00e5255ff7f715d3d1c");
+    let r = h("73b1693892219d736caba55bdb67216e485557ea6b6af75f37096c9aa6a5a75f");
+    let s = h("eeb940b1d03b21e36b0e47e79769f095fe2ab855bd91e3a38756b7d75a9c4549");
+    let low_s = (secp_n - U256::from_be_slice(&s)).to_be_bytes::<32>();
+    let ecrecover = cat(&[&hash, &word(28), &r, &s]);
+
+    let modexp = |b: &[u8], e: &[u8], m: &[u8]| {
+        cat(&[
+            &word(b.len() as u64),
+            &word(e.len() as u64),
+            &word(m.len() as u64),
+            b,
+            e,
+            m,
+        ])
+    };
+
+    let bn_p = h("30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47");
+    let bn_r = h("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001");
+    let bn_g1 = cat(&[&word(1), &word(2)]);
+    let bn_g1_neg = cat(&[
+        &word(1),
+        &h("30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd45"),
+    ]);
+    let bn_off_curve = cat(&[&word(1), &word(3)]);
+    let bn_g2 = h(
+        "198e9393920d483a7260bfb731fb5d25f1aa493335a9e71297e485b7aef312c2\
+                   1800deef121f1e76426a00665e5c4479674322d4f75edadd46debd5cd992f6ed\
+                   090689d0585ff075ec9e99ad690c3395bc4b313370b38ef355acdadcd122975b\
+                   12c85ea5db8c6deb4aab71808dcb408fe3d1e7690c43d37b4ce6cc0166fa7daa",
+    );
+    let mut bn_g2_off_curve = bn_g2.clone();
+    *bn_g2_off_curve.last_mut().unwrap() ^= 1;
+
+    // EIP-152 test vector 5 ("abc", 12 rounds, final block).
+    let blake2f = |rounds: u32, last: u8| {
+        cat(&[
+            &rounds.to_be_bytes(),
+            &h(
+                "48c9bdf267e6096a3ba7ca8485ae67bb2bf894fe72f36e3cf1361d5f3af54fa5\
+                d182e6ad7f520e511f6c3e2b8c68059b6bbd41fbabd9831f79217e1319cde05b",
+            ),
+            &[b"abc".as_slice(), &[0u8; 125]].concat(),
+            &h("03000000000000000000000000000000"),
+            &[last],
+        ])
+    };
+
+    let p256 = h(
+        "b5a77e7a90aa14e0bf5f337f06f597148676424fae26e175c6e5621c34351955\
+                  289f319789da424845c9eac935245fcddd805950e2f02506d09be7e411199556\
+                  d262144475b1fa46ad85250728c600c53dfd10f8b3f4adf140e27241aec3c2da\
+                  3a81046703fccf468b48b145f939efdbb96c3786db712b3113bb2488ef286cdc\
+                  ef8afe82d200a5bb36b5462166e8ce77f2d831a52ef2135b2af188110beaefb1",
+    );
+    let mut p256_bad = p256.clone();
+    p256_bad[40] ^= 1;
+    // BIP-340 test vector 0.
+    let schnorr = h(
+        "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9\
+                     0000000000000000000000000000000000000000000000000000000000000000\
+                     e907831f80848d1069a5371b402410364bdf1c5f8307b0084c55f1ce2dca8215\
+                     25f66a4a85ea8b71e482a74f382d2ce5ebeee8fdb2172f477df4900d310536c0",
+    );
+    let mut schnorr_bad = schnorr.clone();
+    *schnorr_bad.last_mut().unwrap() ^= 1;
+
+    let mut vectors = vec![
+        ("ecrecover high-s", 0x01, ecrecover.clone(), Output),
+        (
+            "ecrecover low-s",
+            0x01,
+            cat(&[&hash, &word(27), &r, &low_s]),
+            Output,
+        ),
+        (
+            "ecrecover v=29",
+            0x01,
+            cat(&[&hash, &word(29), &r, &s]),
+            EmptyOutput,
+        ),
+        (
+            "ecrecover s=n",
+            0x01,
+            cat(&[&hash, &word(28), &r, &secp_n.to_be_bytes::<32>()]),
+            EmptyOutput,
+        ),
+        (
+            "ecrecover r=0",
+            0x01,
+            cat(&[&hash, &word(28), &word(0), &s]),
+            EmptyOutput,
+        ),
+        (
+            "ecrecover truncated",
+            0x01,
+            ecrecover[..64].to_vec(),
+            EmptyOutput,
+        ),
+        ("sha256 empty", 0x02, vec![], Output),
+        ("sha256 55 bytes", 0x02, vec![0xab; 55], Output),
+        ("sha256 64 bytes", 0x02, vec![0xab; 64], Output),
+        ("sha256 1000 bytes", 0x02, vec![0xab; 1000], Output),
+        ("ripemd160 empty", 0x03, vec![], Output),
+        ("ripemd160 1000 bytes", 0x03, vec![0xab; 1000], Output),
+        ("identity empty", 0x04, vec![], EmptyOutput),
+        ("identity 100 bytes", 0x04, vec![0xab; 100], Output),
+        (
+            "modexp eip-198",
+            0x05,
+            modexp(
+                &[3],
+                &h("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e"),
+                &h("fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f"),
+            ),
+            Output,
+        ),
+        (
+            "modexp empty modulus",
+            0x05,
+            modexp(&[3], &[5], &[]),
+            EmptyOutput,
+        ),
+        (
+            "modexp zero modulus",
+            0x05,
+            modexp(&[3], &[5], &[0]),
+            Output,
+        ),
+        (
+            "modexp even modulus",
+            0x05,
+            modexp(&[0xff; 32], &[0xfe; 32], &h("010000000000000000")),
+            Output,
+        ),
+        (
+            "modexp zero exponent",
+            0x05,
+            modexp(&[7], &[], &[13]),
+            Output,
+        ),
+        (
+            "modexp base above modulus",
+            0x05,
+            modexp(&[0xff; 64], &[3], &[1, 0, 1]),
+            Output,
+        ),
+        ("bn254 add", 0x06, cat(&[&bn_g1, &bn_g1]), Output),
+        (
+            "bn254 add infinity",
+            0x06,
+            cat(&[&[0u8; 64], &bn_g1]),
+            Output,
+        ),
+        (
+            "bn254 add off-curve",
+            0x06,
+            cat(&[&bn_off_curve, &bn_g1]),
+            Error,
+        ),
+        (
+            "bn254 add x=p",
+            0x06,
+            cat(&[&bn_p, &word(2), &bn_g1]),
+            Error,
+        ),
+        ("bn254 mul", 0x07, cat(&[&bn_g1, &word(2)]), Output),
+        ("bn254 mul by order", 0x07, cat(&[&bn_g1, &bn_r]), Output),
+        (
+            "bn254 mul off-curve",
+            0x07,
+            cat(&[&bn_off_curve, &word(2)]),
+            Error,
+        ),
+        ("bn254 pairing empty", 0x08, vec![], Output),
+        (
+            "bn254 pairing",
+            0x08,
+            cat(&[&bn_g1, &bn_g2, &bn_g1_neg, &bn_g2]),
+            Output,
+        ),
+        (
+            "bn254 pairing bad length",
+            0x08,
+            cat(&[&bn_g1, &bn_g2])[..191].to_vec(),
+            Error,
+        ),
+        (
+            "bn254 pairing off-curve g2",
+            0x08,
+            cat(&[&bn_g1, &bn_g2_off_curve]),
+            Error,
+        ),
+        ("blake2f", 0x09, blake2f(12, 1), Output),
+        ("blake2f zero rounds", 0x09, blake2f(0, 1), Output),
+        ("blake2f bad final flag", 0x09, blake2f(12, 2), Error),
+        // Not a precompile on Citrea: a call to an empty account.
+        ("kzg point evaluation", 0x0a, vec![0; 192], EmptyOutput),
+        ("p256verify", 0x100, p256.clone(), Output),
+        ("p256verify bad signature", 0x100, p256_bad, EmptyOutput),
+        ("p256verify short", 0x100, p256[..159].to_vec(), EmptyOutput),
+        ("schnorr verify", 0x200, schnorr.clone(), Output),
+        (
+            "schnorr verify bad signature",
+            0x200,
+            schnorr_bad,
+            EmptyOutput,
+        ),
+        (
+            "schnorr verify short",
+            0x200,
+            schnorr[..127].to_vec(),
+            EmptyOutput,
+        ),
+    ];
+    // EIP-2537 (BLS12-381) is not enabled on Citrea either.
+    vectors.extend((0x0b..=0x11).map(|address| ("bls12-381", address, vec![0; 256], EmptyOutput)));
+    vectors
+}
+
+/// Executes edge-case precompile calls on L2 and requires the batch guest, which runs
+/// the SP1-patched (or unaccelerated) crypto, to reproduce the node's state roots.
+struct PrecompileGuestParityTest;
+
+#[async_trait]
+impl TestCase for PrecompileGuestParityTest {
+    fn test_config() -> TestCaseConfig {
+        TestCaseConfig {
+            with_batch_prover: true,
+            ..Default::default()
+        }
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        SequencerConfig {
+            max_l2_blocks_per_commitment: 10,
+            ..Default::default()
+        }
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        BatchProverConfig {
+            proof_sampling_number: 999_999_999_999,
+            ..Default::default()
+        }
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        use alloy::rpc::types::eth::TransactionRequest;
+
+        use crate::common::client::MAX_FEE_PER_GAS;
+
+        let sequencer = f.sequencer.as_ref().unwrap();
+        let batch_prover = f.batch_prover.as_ref().unwrap();
+        let da = f.bitcoin_nodes.get(0).unwrap();
+        let client = make_test_client(SocketAddr::new(
+            sequencer.config().rpc_bind_host().parse()?,
+            sequencer.config().rpc_bind_port(),
+        ))
+        .await?;
+        let precompile = |address: u16| {
+            let mut bytes = [0u8; 20];
+            bytes[18..].copy_from_slice(&address.to_be_bytes());
+            Address::from(bytes)
+        };
+
+        let vectors = precompile_vectors();
+        for (name, address, input, expected) in &vectors {
+            let request = TransactionRequest::default()
+                .from(client.from_addr)
+                .to(precompile(*address))
+                .input(input.clone().into())
+                .gas_limit(PRECOMPILE_PROBE_GAS);
+            let result = client.client.call(request).await;
+            let matches = match (expected, &result) {
+                (PrecompileOutcome::Output, Ok(output)) => !output.is_empty(),
+                (PrecompileOutcome::EmptyOutput, Ok(output)) => output.is_empty(),
+                (PrecompileOutcome::Error, Err(_)) => true,
+                _ => false,
+            };
+            assert!(matches, "{name}: expected {expected:?}, got {result:?}");
+        }
+
+        let nonce = client
+            .eth_get_transaction_count(client.from_addr, None)
+            .await
+            .unwrap();
+        let _ = client
+            .deploy_contract(hex::decode(PRECOMPILE_PROBE)?, Some(nonce))
+            .await
+            .unwrap();
+        sequencer.client.send_publish_batch_request().await?;
+        let probe = client.from_addr.create(nonce);
+
+        // Stay below the mempool's per-account limit, one block per chunk.
+        let blocks_per_commitment = sequencer.max_l2_blocks_per_commitment();
+        let mut blocks = 1;
+        let mut tx_nonce = nonce + 1;
+        for chunk in vectors.chunks(10) {
+            for (_, address, input, _) in chunk {
+                let data = [[0u8; 12].as_slice(), precompile(*address).as_slice(), input].concat();
+                let request = TransactionRequest::default()
+                    .from(client.from_addr)
+                    .to(probe)
+                    .input(data.into())
+                    .gas_limit(PRECOMPILE_PROBE_GAS)
+                    .nonce(tx_nonce)
+                    .max_priority_fee_per_gas(10)
+                    .max_fee_per_gas(MAX_FEE_PER_GAS);
+                let _ = client.client.send_transaction(request).await?;
+                tx_nonce += 1;
+            }
+            sequencer.client.send_publish_batch_request().await?;
+            blocks += 1;
+            sequencer.wait_for_l2_height(blocks, None).await?;
+        }
+        let calls = client
+            .eth_get_storage_at(probe, U256::ZERO, None)
+            .await
+            .unwrap();
+        assert_eq!(
+            calls,
+            U256::from(vectors.len()),
+            "probe calls were not included"
+        );
+
+        // Complete a single commitment.
+        assert!(blocks <= blocks_per_commitment);
+        while blocks < blocks_per_commitment {
+            sequencer.client.send_publish_batch_request().await?;
+            blocks += 1;
+        }
+        da.wait_mempool_len(2, None).await?;
+        da.generate(DEFAULT_FINALITY_DEPTH).await?;
+        batch_prover
+            .wait_for_l1_height(da.get_finalized_height(None).await?, None)
+            .await?;
+
+        let inputs = batch_prover
+            .client
+            .http_client()
+            .create_circuit_input(0, 1, PartitionMode::Normal)
+            .await?;
+        assert_eq!(inputs.len(), 1);
+        let mut host = SP1Host::new(Network::Nightly, SP1HostConfig::from_env()?);
+        host.add_hint(BASE64_STANDARD.decode(&inputs[0])?);
+        let proof = host
+            .run(
+                Uuid::new_v4(),
+                citrea_sp1_batch_proof::BATCH_PROOF_BITCOIN_ELF.to_vec(),
+                citrea_sp1_batch_proof::BATCH_PROOF_BITCOIN_ID,
+                ReceiptType::Groth16,
+                false,
+            )
+            .await?
+            .await?
+            .proof;
+        let output: BatchProofCircuitOutput = SP1Host::extract_output(&proof)?;
+        assert_eq!(output.sequencer_commitment_index_range(), (1, 1));
+
+        let l2_block = sequencer
+            .client
+            .http_client()
+            .get_l2_block_by_number(U64::from(output.last_l2_height()))
+            .await?
+            .unwrap();
+        assert_eq!(output.state_roots()[1], l2_block.header.state_root);
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_precompile_edge_cases_match_in_guest() -> Result<()> {
+    TestCaseRunner::new(PrecompileGuestParityTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
@@ -1648,15 +1846,13 @@ impl TestCase for ProvingSessionInfoTest {
         assert_eq!(proving_job.commitments.len(), 1);
 
         let proving_info = proving_job.proof.expect("proof should exist").info;
-        let Some(ProvingSessionInfo::Local(local_info)) = proving_info else {
+        let Some(ProvingSessionInfo::LocalExecution(stats)) = proving_info else {
             panic!("unexpected proving info type");
         };
 
-        assert!(local_info.segments > 0);
-        assert!(local_info.total_cycles > 0);
-        assert!(local_info.user_cycles > 0);
-        assert!(local_info.paging_cycles > 0);
-        assert!(local_info.reserved_cycles > 0);
+        assert!(stats.instruction_count > 0);
+        assert!(stats.syscall_count > 0);
+        assert!(stats.gas > 0);
         Ok(())
     }
 }

@@ -42,24 +42,19 @@ def wait_for_proofs()->dict:
         results.append(query_until_proven(commitment_id))
     return results
 
-def extract_cycles_from_proof_responses(proof_responses):
-    """Extract cycles from the proving session info in proof responses (Local prover format)"""
-    total = user = paging = reserved = 0
-    
+def extract_session_stats(proof_responses):
+    """Sum the SP1 execution stats of the proofs, which the stats run proves in execute mode."""
+    instructions = syscalls = gas = 0
+
     for proof in proof_responses:
         info = proof["info"]
-        local_info = info["Local"]
+        assert "LocalExecution" in info, f"Expected LocalExecution session info, got {info}"
+        execution = info["LocalExecution"]
 
-        total += local_info["total_cycles"]
-        user += local_info["user_cycles"]
-        paging += local_info["paging_cycles"]
-        reserved += local_info["reserved_cycles"]
-    return {
-        "Total Cycles": total,
-        "User Cycles": user,
-        "Paging Cycles": paging,
-        "Reserved Cycles": reserved,
-    }
+        instructions += execution["instruction_count"]
+        syscalls += execution["syscall_count"]
+        gas += execution["gas"]
+    return {"Instructions": instructions, "Syscalls": syscalls, "Gas (PGU)": gas}
 
 def state_diff_size(state_diff):
     size = 0
@@ -79,9 +74,8 @@ def main():
     # Wait for proofs to be ready
     proof_responses = wait_for_proofs()
 
-    # Extract cycles from RPC responses
-    cycles = extract_cycles_from_proof_responses(proof_responses)
-    print(f"Extracted cycles: {cycles}")
+    session_stats = extract_session_stats(proof_responses)
+    print(f"Extracted session stats: {session_stats}")
 
     # Extract state diffs
     state_diffs = map(lambda proof: proof["proofOutput"]["stateDiff"], proof_responses)
@@ -91,7 +85,7 @@ def main():
     print(f"Total state diff size: {total_diff_size} bytes")
 
     with open(output_file, 'w') as out_f:
-        output_data = {**cycles, "State Diff Size (bytes)": total_diff_size}
+        output_data = {**session_stats, "State Diff Size (bytes)": total_diff_size}
         json.dump(output_data, out_f, indent=4)
 
 if __name__ == "__main__":

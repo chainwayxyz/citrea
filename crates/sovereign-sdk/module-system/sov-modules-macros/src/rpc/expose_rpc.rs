@@ -88,10 +88,10 @@ impl ExposeRpcMacro {
             let module_ident = ty.path.segments.last().unwrap().clone().ident;
 
             let rpc_trait_ident =
-                syn::Ident::new(&format!("{}RpcImpl", &module_ident), module_ident.span());
+                syn::Ident::new(&format!("{}RpcImpl", module_ident), module_ident.span());
 
             let rpc_server_ident =
-                syn::Ident::new(&format!("{}RpcServer", &module_ident), module_ident.span());
+                syn::Ident::new(&format!("{}RpcServer", module_ident), module_ident.span());
 
             let merge_operation = quote! {
                 #(#attrs)*

@@ -5,19 +5,21 @@ use async_trait::async_trait;
 use bitcoin::absolute::LockTime;
 use bitcoin::block::Header;
 use bitcoin::blockdata::script::Builder;
+use bitcoin::consensus::deserialize;
 use bitcoin::hashes::Hash;
 use bitcoin::transaction::Version;
 use bitcoin::{
-    Amount, BlockHash, CompactTarget, OutPoint, ScriptBuf, Sequence, Transaction, TxIn,
+    Amount, Block, BlockHash, CompactTarget, OutPoint, ScriptBuf, Sequence, Transaction, TxIn,
     TxMerkleNode, TxOut, Witness, WitnessMerkleNode,
 };
 use bitcoin_da::helpers::merkle_tree::BitcoinMerkleTree;
 use bitcoin_da::helpers::parsers::parse_hex_transaction;
+use bitcoin_da::helpers::{calculate_txid, calculate_wtxid};
 use bitcoin_da::service::BitcoinService;
 use bitcoin_da::spec::block::BitcoinBlock;
 use bitcoin_da::spec::header::HeaderWrapper;
 use bitcoin_da::spec::proof::InclusionMultiProof;
-use bitcoin_da::spec::transaction::TransactionWrapper;
+use bitcoin_da::spec::transaction::{RawTransaction, TransactionWrapper};
 use bitcoin_da::spec::RollupParams;
 use bitcoin_da::verifier::{BitcoinVerifier, ValidationError, WITNESS_COMMITMENT_PREFIX};
 use citrea_e2e::config::{BitcoinConfig, TestCaseConfig};
@@ -142,6 +144,26 @@ impl TestCase for BitcoinVerifierTest {
             );
         }
 
+        // HeaderWrapper.tx_count is not authenticated by the Bitcoin header, so
+        // transaction verification must rely on the checked coinbase proof height instead.
+        {
+            let header_with_wrong_tx_count = HeaderWrapper::new(
+                *block.header.inner(),
+                1,
+                block.header.height(),
+                block.header.txs_commitment().to_byte_array(),
+            );
+
+            assert_eq!(
+                verifier.verify_transactions(
+                    &header_with_wrong_tx_count,
+                    inclusion_proof.clone(),
+                    completeness_proof.clone(),
+                ),
+                Ok(txs.clone()),
+            );
+        }
+
         // Test non-segwit block
         {
             let nonsegwit_block = get_mock_nonsegwit_block();
@@ -257,18 +279,20 @@ impl TestCase for BitcoinVerifierTest {
 
             let relevant_tx = block_txs
                 .iter_mut()
-                .find(|tx| tx.compute_wtxid() == completeness_proof[0].compute_wtxid())
+                .find(|tx| tx.compute_wtxid().to_byte_array() == completeness_proof[0].wtxid())
                 .unwrap();
 
             // Malform the witness
             let mut malformed_witness = relevant_tx.input[0].witness.to_vec();
             malformed_witness[0][0] = malformed_witness[0][0].wrapping_add(1);
 
-            completeness_proof[0].input[0].witness = Witness::from_slice(&malformed_witness);
+            let mut malformed_tx = completeness_proof[0].decode().unwrap();
+            malformed_tx.input[0].witness = Witness::from_slice(&malformed_witness);
+            completeness_proof[0] = RawTransaction::from(&malformed_tx);
             relevant_tx.input[0].witness = Witness::from_slice(&malformed_witness);
             assert_eq!(
-                completeness_proof[0].compute_wtxid(),
-                relevant_tx.compute_wtxid()
+                completeness_proof[0].wtxid(),
+                relevant_tx.compute_wtxid().to_byte_array()
             );
 
             let tree = BitcoinMerkleTree::new(
@@ -297,9 +321,9 @@ impl TestCase for BitcoinVerifierTest {
         {
             let mut ip = inclusion_proof.clone();
 
-            // Prefix is made 2, which will look like inclusion proof
-            // has extra relevant transaction in it.
-            ip.wtxids[0] = [2; 32];
+            let mut fake_relevant_wtxid = [0xff; 32];
+            fake_relevant_wtxid[..REVEAL_TX_PREFIX.len()].copy_from_slice(REVEAL_TX_PREFIX);
+            ip.wtxids[1] = fake_relevant_wtxid;
             assert_eq!(
                 verifier.verify_transactions(&block.header, ip, completeness_proof.clone(),),
                 Err(ValidationError::RelevantTxNotInProof),
@@ -325,7 +349,7 @@ impl TestCase for BitcoinVerifierTest {
                     inclusion_proof,
                     completeness_proof.clone(),
                 ),
-                Err(ValidationError::HeaderInclusionTxCountMismatch),
+                Err(ValidationError::InvalidSegWitCommitment),
             );
         }
 
@@ -340,7 +364,22 @@ impl TestCase for BitcoinVerifierTest {
                     inclusion_proof,
                     completeness_proof.clone(),
                 ),
-                Err(ValidationError::HeaderInclusionTxCountMismatch),
+                Err(ValidationError::WitnessTxidMerkleTreeDepthMismatch),
+            );
+        }
+
+        // Empty wtxids triggers the dedicated InvalidWitnessTxidCount path: the
+        // only emission site for that error, so worth pinning explicitly.
+        {
+            let mut inclusion_proof = inclusion_proof.clone();
+            inclusion_proof.wtxids.clear();
+            assert_eq!(
+                verifier.verify_transactions(
+                    &block.header,
+                    inclusion_proof,
+                    completeness_proof.clone(),
+                ),
+                Err(ValidationError::InvalidWitnessTxidCount),
             );
         }
 
@@ -378,7 +417,7 @@ impl TestCase for BitcoinVerifierTest {
         {
             let mut completeness_proof = completeness_proof.clone();
 
-            completeness_proof.push(block.txdata[0].clone());
+            completeness_proof.push(RawTransaction::from(&block.txdata[0]));
             assert_panic!(
                 verifier.verify_transactions(
                     &block.header,
@@ -396,9 +435,9 @@ impl TestCase for BitcoinVerifierTest {
             let nonrelevant_tx = block
                 .txdata
                 .iter()
+                .map(RawTransaction::from)
                 .find(|tx| !completeness_proof.contains(tx))
-                .unwrap()
-                .clone();
+                .unwrap();
             completeness_proof[0] = nonrelevant_tx;
             assert_eq!(
                 verifier.verify_transactions(
@@ -457,13 +496,14 @@ impl TestCase for BitcoinVerifierTest {
             );
         }
 
-        // Tx count set to 1 but txs_commitment is not [0; 32]
+        // Coinbase-only block but txs_commitment is not [0; 32]
         {
             let header = HeaderWrapper::new(*block.header.inner(), 1, 1, [1; 32]);
 
             // Keep only the coinbase transaction in the inclusion proof
             let mut modified_inclusion = inclusion_proof.clone();
             modified_inclusion.wtxids = vec![inclusion_proof.wtxids[0]];
+            modified_inclusion.coinbase_merkle_proof = vec![];
 
             assert_eq!(
                 verifier.verify_transactions(&header, modified_inclusion, vec![],),
@@ -471,7 +511,7 @@ impl TestCase for BitcoinVerifierTest {
             );
         }
 
-        // Tx count higher than 1 in a non segwit block but header merkle root doesn't match txs_commitment
+        // Multi-tx non-segwit block but header merkle root doesn't match txs_commitment
         {
             let nonsegwit_block = get_mock_nonsegwit_block();
             let header = HeaderWrapper::new(
@@ -742,6 +782,234 @@ impl BitcoinVerifierTest {
 
         Ok(())
     }
+}
+
+const CITRSC_341_BLOCK_HEIGHT: u64 = 102;
+const CITRSC_341_PRODUCTION_REVEAL_PREFIX: &[u8] = &[0x02, 0x02];
+const CITRSC_341_REVEAL_TX_INDEX: usize = 2;
+const CITRSC_341_REVEAL_WTXID: &str =
+    "0202ba3c8d54cd447a09e32dd8799abaf6ec5b847cf627d31986dbe74aaa5582";
+const CITRSC_341_WITNESS_ROOT: &str =
+    "122e2010d46425c5befb42f134abcc08591040202f440d2c24a5f62241e25225";
+
+struct Citrsc341Proofs {
+    block: Block,
+    honest_header: HeaderWrapper,
+    honest_inclusion: InclusionMultiProof,
+    honest_completeness: Vec<RawTransaction>,
+    malicious_header: HeaderWrapper,
+    malicious_inclusion: InclusionMultiProof,
+}
+
+fn citrsc_341_verifier() -> BitcoinVerifier {
+    BitcoinVerifier::new(RollupParams {
+        reveal_tx_prefix: CITRSC_341_PRODUCTION_REVEAL_PREFIX.to_vec(),
+        network: Network::Nightly,
+    })
+}
+
+// Regtest block at height 102 with 4 transactions. The third tx is a real reveal
+// whose wtxid starts with the production prefix `0x02 0x02`; the two internal
+// nodes of its witness merkle tree happen NOT to share that prefix, which is the
+// exact shape needed to drive the CITRSC-341 internal-node bypass (see
+// `citrsc_341_proofs` for the construction). Regenerate by mining one such
+// block on a regtest node and recording the serialized bytes as hex.
+fn citrsc_341_block() -> Block {
+    let block_bytes = hex::decode(include_str!("test-data/citrsc-341-block.hex").trim()).unwrap();
+    deserialize(&block_bytes).unwrap()
+}
+
+fn citrsc_341_wtxids(block: &Block) -> Vec<[u8; 32]> {
+    let mut wtxids = Vec::with_capacity(block.txdata.len());
+    wtxids.push([0; 32]);
+    wtxids.extend(block.txdata.iter().skip(1).map(calculate_wtxid));
+    wtxids
+}
+
+fn citrsc_341_proofs() -> Citrsc341Proofs {
+    let block = citrsc_341_block();
+    assert_eq!(block.txdata.len(), 4);
+
+    let wtxids = citrsc_341_wtxids(&block);
+    assert_eq!(
+        hex::encode(wtxids[CITRSC_341_REVEAL_TX_INDEX]),
+        CITRSC_341_REVEAL_WTXID
+    );
+    assert!(wtxids[CITRSC_341_REVEAL_TX_INDEX].starts_with(CITRSC_341_PRODUCTION_REVEAL_PREFIX));
+
+    let witness_root = BitcoinMerkleTree::new(wtxids.clone()).root();
+    assert_eq!(hex::encode(witness_root), CITRSC_341_WITNESS_ROOT);
+
+    let txid_tree = BitcoinMerkleTree::new(block.txdata.iter().map(calculate_txid).collect());
+    assert_eq!(txid_tree.root(), block.header.merkle_root.to_byte_array());
+
+    let coinbase_merkle_proof = txid_tree.get_idx_path(0);
+    let coinbase_tx = TransactionWrapper::from(block.txdata[0].clone());
+
+    let honest_header = HeaderWrapper::new(
+        block.header,
+        block.txdata.len() as u32,
+        CITRSC_341_BLOCK_HEIGHT,
+        witness_root,
+    );
+    let honest_inclusion = InclusionMultiProof {
+        wtxids: wtxids.clone(),
+        coinbase_tx: coinbase_tx.clone(),
+        coinbase_merkle_proof: coinbase_merkle_proof.clone(),
+    };
+    let honest_completeness = vec![RawTransaction::from(
+        &block.txdata[CITRSC_341_REVEAL_TX_INDEX],
+    )];
+
+    let fake_left = BitcoinMerkleTree::new(vec![wtxids[0], wtxids[1]]).root();
+    let fake_right = BitcoinMerkleTree::new(vec![wtxids[2], wtxids[3]]).root();
+
+    assert!(!fake_left.starts_with(CITRSC_341_PRODUCTION_REVEAL_PREFIX));
+    assert!(!fake_right.starts_with(CITRSC_341_PRODUCTION_REVEAL_PREFIX));
+    assert_eq!(
+        BitcoinMerkleTree::new(vec![fake_left, fake_right]).root(),
+        witness_root
+    );
+
+    let malicious_header =
+        HeaderWrapper::new(block.header, 2, CITRSC_341_BLOCK_HEIGHT, witness_root);
+    let malicious_inclusion = InclusionMultiProof {
+        wtxids: vec![fake_left, fake_right],
+        coinbase_tx,
+        coinbase_merkle_proof,
+    };
+
+    Citrsc341Proofs {
+        block,
+        honest_header,
+        honest_inclusion,
+        honest_completeness,
+        malicious_header,
+        malicious_inclusion,
+    }
+}
+
+#[test]
+fn test_citrsc_341_internal_witness_nodes_are_rejected() {
+    let proofs = citrsc_341_proofs();
+    let verifier = citrsc_341_verifier();
+
+    assert_eq!(proofs.honest_header.hash(), proofs.malicious_header.hash());
+
+    let honest_blobs = verifier
+        .verify_transactions(
+            &proofs.honest_header,
+            proofs.honest_inclusion,
+            proofs.honest_completeness,
+        )
+        .expect("honest proof from the report block should verify");
+
+    assert_eq!(honest_blobs.len(), 1);
+    assert_eq!(
+        honest_blobs[0].wtxid(),
+        calculate_wtxid(&proofs.block.txdata[CITRSC_341_REVEAL_TX_INDEX])
+    );
+
+    assert_eq!(
+        verifier.verify_transactions(
+            &proofs.malicious_header,
+            proofs.malicious_inclusion.clone(),
+            vec![]
+        ),
+        Err(ValidationError::InvalidCoinbaseWitnessTxid)
+    );
+
+    let mut depth_mismatch_inclusion = proofs.malicious_inclusion;
+    depth_mismatch_inclusion.wtxids[0] = [0; 32];
+    assert_eq!(
+        verifier.verify_transactions(&proofs.malicious_header, depth_mismatch_inclusion, vec![]),
+        Err(ValidationError::WitnessTxidMerkleTreeDepthMismatch)
+    );
+}
+
+#[test]
+fn test_citrsc_341_honest_proof_does_not_trust_header_tx_count() {
+    let proofs = citrsc_341_proofs();
+    let verifier = citrsc_341_verifier();
+
+    let header_with_wrong_tx_count = HeaderWrapper::new(
+        *proofs.honest_header.inner(),
+        1,
+        proofs.honest_header.height(),
+        proofs.honest_header.txs_commitment().to_byte_array(),
+    );
+    assert_ne!(
+        header_with_wrong_tx_count.tx_count(),
+        proofs.block.txdata.len() as u32
+    );
+
+    let honest_blobs = verifier
+        .verify_transactions(
+            &header_with_wrong_tx_count,
+            proofs.honest_inclusion,
+            proofs.honest_completeness,
+        )
+        .expect("honest proof should not depend on unauthenticated tx_count");
+
+    assert_eq!(honest_blobs.len(), 1);
+    assert_eq!(
+        honest_blobs[0].wtxid(),
+        calculate_wtxid(&proofs.block.txdata[CITRSC_341_REVEAL_TX_INDEX])
+    );
+}
+
+#[test]
+fn test_citrsc_341_same_depth_different_count_is_rejected() {
+    let proofs = citrsc_341_proofs();
+    let verifier = citrsc_341_verifier();
+
+    let mut three_wtxids = proofs.honest_inclusion.wtxids.clone();
+    assert_eq!(three_wtxids.len(), 4);
+    let omitted_reveal_wtxid = three_wtxids.remove(CITRSC_341_REVEAL_TX_INDEX);
+    assert_eq!(hex::encode(omitted_reveal_wtxid), CITRSC_341_REVEAL_WTXID);
+    assert_eq!(three_wtxids.len(), 3);
+    assert_eq!(proofs.honest_inclusion.coinbase_merkle_proof.len(), 2);
+    assert!(three_wtxids
+        .iter()
+        .all(|wtxid| !wtxid.starts_with(CITRSC_341_PRODUCTION_REVEAL_PREFIX)));
+
+    let malicious_inclusion = InclusionMultiProof {
+        wtxids: three_wtxids,
+        coinbase_tx: proofs.honest_inclusion.coinbase_tx.clone(),
+        coinbase_merkle_proof: proofs.honest_inclusion.coinbase_merkle_proof.clone(),
+    };
+
+    // Same depth, different content: falls through to the SegWit commitment
+    // check, which detects that the rebuilt witness tree's root no longer
+    // matches the commitment embedded in the coinbase output.
+    assert_eq!(
+        verifier.verify_transactions(&proofs.honest_header, malicious_inclusion, vec![]),
+        Err(ValidationError::IncorrectWitnessCommitment)
+    );
+}
+
+// A tampered coinbase Merkle proof with the authenticated depth must still be
+// rejected, because the coinbase proof is independently authenticated against
+// the header's txid Merkle root at the end of verify_transactions.
+#[test]
+fn test_citrsc_341_tampered_coinbase_proof_is_rejected() {
+    let proofs = citrsc_341_proofs();
+    let verifier = citrsc_341_verifier();
+
+    let tampered_inclusion = InclusionMultiProof {
+        wtxids: proofs.honest_inclusion.wtxids.clone(),
+        coinbase_tx: proofs.honest_inclusion.coinbase_tx.clone(),
+        coinbase_merkle_proof: vec![[0u8; 32]; proofs.honest_inclusion.coinbase_merkle_proof.len()],
+    };
+
+    assert_eq!(
+        verifier.verify_transactions(
+            &proofs.honest_header,
+            tampered_inclusion,
+            proofs.honest_completeness
+        ),
+        Err(ValidationError::IncorrectTxidCommitment)
+    );
 }
 
 #[tokio::test]

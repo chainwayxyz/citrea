@@ -1,0 +1,104 @@
+#![no_main]
+use bitcoin_da::spec::{BitcoinSpec, RollupParams};
+use bitcoin_da::verifier::BitcoinVerifier;
+use citrea_light_client_prover::circuit::initial_values::bitcoinda;
+use citrea_light_client_prover::circuit::initial_values::non_empty_slice::NonEmptySlice;
+use citrea_light_client_prover::circuit::{
+    LightClientProofCircuit, SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE, SECURITY_COUNCIL_MEMBER_COUNT,
+};
+use citrea_primitives::risc0_cutoff::risc0_cutoff;
+use citrea_primitives::REVEAL_TX_PREFIX;
+use citrea_sp1::guest::SP1Guest;
+use sov_rollup_interface::da::DaVerifier;
+use sov_rollup_interface::zk::ZkvmGuest;
+use sov_rollup_interface::Network;
+use sov_state::ZkStorage;
+
+sp1_zkvm::entrypoint!(main);
+
+const NETWORK: Network = match option_env!("CITREA_NETWORK") {
+    Some(network) => match Network::const_from_str(network) {
+        Some(network) => network,
+        None => panic!("Invalid CITREA_NETWORK value"),
+    },
+    None => Network::Nightly,
+};
+
+const L2_GENESIS_ROOT: [u8; 32] = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_GENESIS_ROOT,
+        Network::Testnet => bitcoinda::TESTNET_GENESIS_ROOT,
+        Network::Devnet => bitcoinda::DEVNET_GENESIS_ROOT,
+        Network::Nightly => bitcoinda::NIGHTLY_GENESIS_ROOT,
+    }
+};
+
+const INITIAL_BATCH_PROOF_METHOD_IDS: NonEmptySlice<(u64, [u32; 8])> = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_INITIAL_BATCH_PROOF_METHOD_IDS,
+        Network::Testnet => bitcoinda::TESTNET_INITIAL_BATCH_PROOF_METHOD_IDS,
+        Network::Devnet => bitcoinda::DEVNET_INITIAL_BATCH_PROOF_METHOD_IDS,
+        Network::Nightly => bitcoinda::NIGHTLY_INITIAL_BATCH_PROOF_METHOD_IDS,
+    }
+};
+
+const SEQUENCER_DA_PUBLIC_KEY: [u8; 33] = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Testnet => bitcoinda::TESTNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Devnet => bitcoinda::DEVNET_SEQUENCER_DA_PUBLIC_KEY,
+        Network::Nightly => bitcoinda::NIGHTLY_SEQUENCER_DA_PUBLIC_KEY,
+    }
+};
+
+const BATCH_PROVER_DA_PUBLIC_KEY: [u8; 33] = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::Testnet => bitcoinda::TESTNET_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::Devnet => bitcoinda::DEVNET_BATCH_PROVER_DA_PUBLIC_KEY,
+        Network::Nightly => bitcoinda::NIGHTLY_BATCH_PROVER_DA_PUBLIC_KEY,
+    }
+};
+
+pub const METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS: [[u8;
+    SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+    SECURITY_COUNCIL_MEMBER_COUNT] = {
+    match NETWORK {
+        Network::Mainnet => bitcoinda::MAINNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Testnet => bitcoinda::TESTNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Devnet => bitcoinda::DEVNET_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        Network::Nightly => bitcoinda::NIGHTLY_METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+    }
+};
+
+pub fn main() {
+    let storage = ZkStorage::new();
+
+    let guest = SP1Guest::new();
+
+    let da_verifier = BitcoinVerifier::new(RollupParams {
+        reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+        network: NETWORK,
+    });
+
+    let input = guest.read_from_host();
+
+    let lcp = LightClientProofCircuit::<ZkStorage, BitcoinSpec, SP1Guest>::new();
+
+    let output = lcp
+        .run_circuit(
+            da_verifier,
+            input,
+            storage,
+            NETWORK,
+            risc0_cutoff(NETWORK),
+            L2_GENESIS_ROOT,
+            INITIAL_BATCH_PROOF_METHOD_IDS.to_vec(),
+            &BATCH_PROVER_DA_PUBLIC_KEY,
+            &SEQUENCER_DA_PUBLIC_KEY,
+            &METHOD_ID_UPGRADE_AUTHORITY_DA_PUBLIC_KEYS,
+        )
+        .unwrap();
+
+    guest.commit(&output);
+}

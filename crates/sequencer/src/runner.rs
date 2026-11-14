@@ -871,7 +871,7 @@ where
         let state_root_transition = l2_block_result.state_root_transition;
 
         // Check if state has actually changed
-        if state_root_transition.final_root.as_ref() == self.state_root.as_ref() {
+        if state_root_transition.final_root == self.state_root {
             bail!("Max L2 blocks per L1 is reached for the current L1 block. State root is the same as before, skipping");
         }
 

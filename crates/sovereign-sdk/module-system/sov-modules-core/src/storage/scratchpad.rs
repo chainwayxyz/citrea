@@ -632,7 +632,7 @@ impl<S: Storage> WorkingSet<S> {
     ///
     /// You can use this method when calling getters and setters on accessory
     /// state containers, like AccessoryStateMap.
-    pub fn accessory_state(&mut self) -> AccessoryWorkingSet<S> {
+    pub fn accessory_state(&mut self) -> AccessoryWorkingSet<'_, S> {
         AccessoryWorkingSet { ws: self }
     }
 
@@ -640,7 +640,7 @@ impl<S: Storage> WorkingSet<S> {
     ///
     /// You can use this method when calling getters and setters on offchain
     /// state containers, like OffchainStateMap.
-    pub fn offchain_state(&mut self) -> OffchainWorkingSet<S> {
+    pub fn offchain_state(&mut self) -> OffchainWorkingSet<'_, S> {
         OffchainWorkingSet { ws: self }
     }
 

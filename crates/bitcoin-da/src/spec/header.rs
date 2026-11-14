@@ -58,6 +58,7 @@ impl BlockHeaderTrait for HeaderWrapper {
         self.header.bits.to_consensus()
     }
 
+    #[cfg(feature = "native")]
     fn coinbase_txid_merkle_proof_height(&self) -> u64 {
         f64::log2(self.tx_count as f64).ceil() as u64
     }

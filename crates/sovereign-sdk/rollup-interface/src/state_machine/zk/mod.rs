@@ -1,12 +1,4 @@
-//! Defines the traits that must be implemented by zkVMs. A zkVM like Risc0 consists of two components,
-//! a "guest" and a "host". The guest is the zkVM program itself, and the host is the physical machine on
-//! which the zkVM is running. Both the guest and the host are required to implement the [`Zkvm`] trait, in
-//! addition to the specialized [`ZkvmGuest`] and [`ZkvmHost`] trait which is appropriate to that environment.
-//!
-//! For a detailed example showing how to implement these traits, see the
-//! [risc0 adapter](https://github.com/Sovereign-Labs/sovereign-sdk/tree/main/adapters/risc0)
-//! maintained by the Sovereign Labs team.
-
+//! Interfaces for host and guest execution and verification.
 use std::fmt::Debug;
 
 #[cfg(feature = "native")]
@@ -19,6 +11,9 @@ use serde::Serialize;
 #[cfg(feature = "native")]
 use tokio::sync::oneshot;
 
+/// SP1 proof encoding and program commitments.
+pub mod sp1;
+
 /// Definitions related to batch proofs.
 pub mod batch_proof;
 /// Definitions related to light client proofs.
@@ -29,56 +24,54 @@ pub type Proof = Vec<u8>;
 
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-/// Information about a local prover's execution.
-pub struct LocalProvingSessionInfo {
-    /// Segments count
-    pub segments: usize,
-    /// Total cycles count
-    pub total_cycles: u64,
-    /// User cycles count
-    pub user_cycles: u64,
-    /// Paging cycles count
-    pub paging_cycles: u64,
-    /// Reserved cycles count
-    pub reserved_cycles: u64,
+/// Measurements from an SP1 guest execution report.
+pub struct Sp1ExecutionStats {
+    /// Executed RISC-V instructions.
+    pub instruction_count: u64,
+    /// Executed syscalls, including precompiles.
+    pub syscall_count: u64,
+    /// Normalized prover gas units (PGU).
+    pub gas: u64,
 }
 
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-/// Information about a bonsai proving session.
-pub struct BonsaiProvingSessionInfo {
-    /// Session ID of the proof request
-    pub session_id: String,
-    /// Count of segments in this proof request
-    pub segments: usize,
-    /// Total cycles run within guest
-    pub total_cycles: u64,
-    /// User cycles run within guest, slightly below total overhead cycles
-    pub user_cycles: u64,
-    /// Type of the proof receipt
-    pub receipt_type: ReceiptType,
-}
-
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-/// Information about a boundless proving session.
-pub struct BoundlessProvingSessionInfo {
-    /// Request ID of the proof request
-    pub request_id: String,
-    /// Approximate number of cycles used for the proof generation
-    pub total_cycles_approx: u64,
-}
-
-#[cfg(feature = "native")]
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-/// Information about the proving session.
+/// SP1 proving metadata.
 pub enum ProvingSessionInfo {
-    /// Information about a local prover's execution.
-    Local(LocalProvingSessionInfo),
-    /// Information about a bonsai proving session.
-    Bonsai(BonsaiProvingSessionInfo),
-    /// Information about a boundless proving session.
-    Boundless(BoundlessProvingSessionInfo),
+    /// Real guest execution with an unverified mock proof envelope.
+    LocalExecution(Sp1ExecutionStats),
+    /// Proof from the Succinct prover network.
+    SuccinctNetwork(SuccinctNetworkSession),
+}
+
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+/// A proof request job on the Succinct prover network.
+pub struct SuccinctNetworkSession {
+    /// The request that delivered the proof.
+    #[serde(with = "crate::rpc::utils::rpc_hex")]
+    pub request_id: [u8; 32],
+    /// Host execution run before requesting, for the request's gas and cycle limits.
+    pub execution: Sp1ExecutionStats,
+    /// The network's record of the delivered request.
+    pub fulfillment: Option<SuccinctNetworkFulfillment>,
+}
+
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+/// The prover network's record of a delivered request, fetched on delivery.
+/// The request's fee is `base_fee + gas_used * gas_price`.
+pub struct SuccinctNetworkFulfillment {
+    /// Prover gas units the network charged for.
+    pub gas_used: Option<u64>,
+    /// Price per PGU the auction cleared at, in PROVE wei.
+    pub gas_price: Option<u64>,
+    /// Per-request fee in PROVE wei, as the network's decimal string.
+    pub base_fee: Option<String>,
+    /// When the network created the request, in Unix seconds.
+    pub created_at: u64,
+    /// When the request was fulfilled, in Unix seconds.
+    pub fulfilled_at: Option<u64>,
 }
 
 #[cfg(feature = "native")]
@@ -99,7 +92,7 @@ pub struct ProofWithJob {
 pub enum ReceiptType {
     /// Use Groth16
     Groth16,
-    /// Use Succinct
+    /// Use a compressed STARK suitable for native recursion.
     Succinct,
 }
 
@@ -107,27 +100,20 @@ pub enum ReceiptType {
 #[cfg(feature = "native")]
 #[async_trait]
 pub trait ZkvmHost: Zkvm + Clone + Send {
-    /// The associated guest type
-    type Guest: ZkvmGuest;
     /// Give the guest a piece of advice non-deterministically
     /// `item` is a borsh serialized input to the guest
     fn add_hint(&mut self, item: Vec<u8>);
 
-    /// Simulate running the guest using the provided hints.
-    ///
-    /// Provides a simulated version of the guest which can be
-    /// accessed in the current process.
-    fn simulate_with_hints(&mut self) -> Self::Guest;
-
     /// Run the guest in the true zk environment using the provided hints.
     ///
     /// This runs the guest binary compiled for the zkVM target, optionally
-    /// creating a SNARK of correct execution. Running the true guest binary comes
-    /// with some mild performance overhead and is not as easy to debug as [`simulate_with_hints`](ZkvmHost::simulate_with_hints).
+    /// creating a SNARK of correct execution.
+    /// `program` is the pinned commitment of `elf`.
     async fn run(
         &mut self,
         job_id: uuid::Uuid,
         elf: Vec<u8>,
+        program: [u32; 8],
         receipt_type: ReceiptType,
         with_prove: bool,
     ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>>;
@@ -138,6 +124,11 @@ pub trait ZkvmHost: Zkvm + Clone + Send {
     /// Host adds an assumption to the proving session
     /// Assumptions are used for recursive proving
     fn add_assumption(&mut self, receipt_buf: Vec<u8>);
+
+    /// Separate a recursion claim from its host-only proof payload.
+    fn recursive_proof_hint(serialized_proof: &[u8]) -> Result<Vec<u8>, Self::Error> {
+        Ok(serialized_proof.to_vec())
+    }
 }
 
 /// A Zk proof system capable of proving and verifying arbitrary Rust code
@@ -181,6 +172,15 @@ pub trait Zkvm: Send + Sync {
         code_commitment: &Self::CodeCommitment,
         allow_dev_mode: bool,
     ) -> Result<T, Self::Error>;
+
+    /// Verify a light-client proof, whose transport can differ from batch proofs.
+    fn verify_lcp_and_deserialize_output<T: BorshDeserialize>(
+        serialized_proof: &[u8],
+        code_commitment: &Self::CodeCommitment,
+        allow_dev_mode: bool,
+    ) -> Result<T, Self::Error> {
+        Self::verify_and_deserialize_output(serialized_proof, code_commitment, allow_dev_mode)
+    }
 }
 
 /// A trait which is accessible from within a zkVM program.
@@ -189,9 +189,6 @@ pub trait ZkvmGuest: Zkvm + Send + Sync {
     fn read_from_host<T: BorshDeserialize>(&self) -> T;
     /// Add a public output to the zkVM proof
     fn commit<T: BorshSerialize>(&self, item: &T);
-    /// Verify the ZK proof using assumption APIs
-    /// Panics when a proof can't be verified
-    fn verify_with_assumptions(journal: &[u8], code_commitment: &Self::CodeCommitment);
 }
 
 /// A trait expressing that two items of a type are (potentially fuzzy) matches.
@@ -206,3 +203,5 @@ pub type StorageRootHash = [u8; 32];
 
 /// Alias to jmt::proof::SparseMerkleProof.
 pub type SparseMerkleProofSha2 = jmt::proof::SparseMerkleProof<sha2::Sha256>;
+
+pub mod compressed;

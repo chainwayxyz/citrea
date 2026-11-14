@@ -11,7 +11,6 @@ fn test_network_to_dev_mode() {
     assert!(network_to_dev_mode(Network::Testnet));
     assert!(network_to_dev_mode(Network::Devnet));
     assert!(network_to_dev_mode(Network::Nightly));
-    assert!(network_to_dev_mode(Network::TestNetworkWithForks));
 
     assert!(!network_to_dev_mode(Network::Mainnet));
 }

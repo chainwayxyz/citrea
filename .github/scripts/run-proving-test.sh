@@ -24,6 +24,4 @@ sleep 2
 # After running the container, change ownership back to the user
 sudo chown -R $USER:$USER $TEST_DIR/bitcoin 
 
-# we must clean batch prover db but we also clean
-# the sequencer db as there may be corruption due to the kill -9
-rm -rf $TEST_DIR/dbs/
+rm -rf $TEST_DIR/dbs/ $TEST_DIR/bitcoin/

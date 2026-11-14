@@ -67,6 +67,7 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = 
 sov-state = { path = "../sovereign-sdk/module-system/sov-state" }
 
 # Citrea Deps
+bitcoin-da = { path = "../bitcoin-da", features = ["native"] }
 citrea-common = { path = "../common" }
 citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }

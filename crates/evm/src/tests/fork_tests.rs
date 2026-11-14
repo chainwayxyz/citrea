@@ -327,8 +327,9 @@ fn test_self_destructing_constructor() {
 
     let contract_info = evm.account_info(&contract_addr, &mut working_set);
     // Post-fork behavior: the contract is created and selfdestructed in the same transaction,
-    // so only an empty account (default AccountInfo) should remain.
-    assert_eq!(contract_info, Some(AccountInfo::default()));
+    // so an address that did not exist before the transaction must remain non-existent.
+    assert_eq!(contract_info, None);
+    assert!(!evm.account_exists(&contract_addr, &mut working_set));
 
     let die_to_contract_info = evm.account_info(&die_to_address, &mut working_set);
 
@@ -415,11 +416,13 @@ fn test_prefunded_self_destructing_constructor() {
     evm.end_l2_block_hook(&l2_block_info, &mut working_set);
     evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
 
-    let contract_info = evm.account_info(&contract_addr, &mut working_set);
-
-    // assert balance is 0
-    assert!(contract_info.is_some());
-    assert_eq!(contract_info.unwrap().balance, U256::ZERO);
+    // The prefunding transaction allocated an index before the CREATE transaction. Citrea keeps
+    // that index and clears the account in place rather than deleting it.
+    assert_eq!(
+        evm.account_info(&contract_addr, &mut working_set),
+        Some(AccountInfo::default())
+    );
+    assert!(evm.account_exists(&contract_addr, &mut working_set));
 
     let die_to_contract_info = evm.account_info(&die_to_address, &mut working_set);
     // die_to_address should have the contract balance
@@ -715,6 +718,106 @@ fn test_p256_verify() {
     let storage_value = evm
         .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
         .unwrap_or_default();
+    assert_eq!(storage_value, U256::from(1));
+    assert!(receipts.last().unwrap().receipt.status());
+}
+
+// The schnorr precompile is disabled before tangerine, even for a valid signature, and the same
+// call succeeds once tangerine activates.
+#[test]
+fn test_schnorr_verify_activates_at_tangerine() {
+    let (config, dev_signer) =
+        get_evm_config(U256::from_str("100000000000000000000").unwrap(), None);
+
+    let contract_addr = dev_signer.address().create(0);
+
+    let (mut evm, mut working_set, _spec_id, _ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::Kumquat);
+    let l1_fee_rate = 0;
+    let mut l2_height = 2;
+
+    let mut l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Kumquat,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let keypair = Keypair::new(SECP256K1, &mut rand::thread_rng());
+    let message = [1; 32];
+    let signature = SECP256K1.sign_schnorr_no_aux_rand(&message, &keypair);
+    let public_key = XOnlyPublicKey::from_keypair(&keypair).0;
+    let mut input = Vec::new();
+    input.extend_from_slice(&public_key.serialize());
+    input.extend_from_slice(message.as_ref());
+    input.extend_from_slice(signature.as_ref());
+    let input = Bytes::from(input);
+
+    let sender_address = generate_address::<C>("sender");
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
+
+        let deploy_message =
+            create_contract_message(&dev_signer, 0, SchnorrVerifyCallerContract::default());
+        let call_message =
+            call_schnorr_verify_transaction(contract_addr, &dev_signer, 1, input.clone());
+
+        evm.call(
+            CallMessage {
+                txs: vec![deploy_message, call_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let receipts: Vec<_> = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect();
+
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
+        .unwrap_or_default();
+    assert_eq!(storage_value, U256::ZERO);
+    assert!(!receipts.last().unwrap().receipt.status());
+
+    l2_block_info.current_spec = SovSpecId::Tangerine;
+    l2_block_info.l2_height += 1;
+    l2_height += 1;
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+
+        let call_message = call_schnorr_verify_transaction(contract_addr, &dev_signer, 2, input);
+
+        evm.call(
+            CallMessage {
+                txs: vec![call_message],
+            },
+            &context,
+            &mut working_set,
+        )
+        .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let receipts: Vec<_> = evm
+        .receipts
+        .iter(&mut working_set.accessory_state())
+        .collect();
+
+    let storage_value = evm
+        .storage_get(&contract_addr, &U256::ZERO, &mut working_set)
+        .unwrap();
     assert_eq!(storage_value, U256::from(1));
     assert!(receipts.last().unwrap().receipt.status());
 }

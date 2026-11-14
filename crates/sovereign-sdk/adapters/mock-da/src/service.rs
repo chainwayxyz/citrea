@@ -179,8 +179,7 @@ impl MockDaService {
             .lock()
             .await
             .len()
-            .checked_sub(self.blocks_to_finality as usize)
-            .unwrap_or_default() as u64
+            .saturating_sub(self.blocks_to_finality as usize) as u64
     }
 
     /// Adds a mock blob to the mock da layer for tests

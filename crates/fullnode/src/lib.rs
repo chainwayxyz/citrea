@@ -165,6 +165,8 @@ mod error;
 mod l2_syncer;
 /// Module for metrics collection
 mod metrics;
+/// Module for reading RISC0 batch proofs published before the RISC0 cutoff
+mod risc0_proof;
 /// Module providing RPC functionality
 pub mod rpc;
 

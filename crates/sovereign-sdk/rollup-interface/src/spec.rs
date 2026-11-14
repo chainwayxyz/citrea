@@ -44,14 +44,16 @@ pub enum SpecId {
     Tangelo = 3,
     /// Fourth fork fixes an edge case issue with selfdestruct opcode
     TangeloSelfdestructFix = 4,
+    /// Pomelo spec
+    Pomelo = 5,
     #[cfg(feature = "testing")]
-    /// Fifth fork for testing purposes only
-    Fork5 = 5,
+    /// 6th fork for testing purposes only
+    Fork6 = 6,
 }
 
 impl SpecId {
     /// Get the latest active (official) SpecId.
     pub const fn latest() -> Self {
-        Self::TangeloSelfdestructFix
+        Self::Pomelo
     }
 }

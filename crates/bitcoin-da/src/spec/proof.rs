@@ -3,7 +3,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
-use crate::spec::TransactionWrapper;
+use crate::spec::transaction::TransactionWrapper;
 
 /// Set of proofs for inclusion of a transaction in a block
 #[derive(Clone, Debug, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]

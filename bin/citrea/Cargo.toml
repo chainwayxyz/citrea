@@ -19,11 +19,10 @@ citrea-common = { path = "../../crates/common" }
 citrea-fullnode = { path = "../../crates/fullnode" }
 citrea-light-client-prover = { path = "../../crates/light-client-prover", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives" }
-citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native"] }
-citrea-risc0-batch-proof = { path = "../../guests/risc0/batch-proof" }
-citrea-risc0-light-client = { path = "../../guests/risc0/light-client-proof" }
 citrea-sequencer = { path = "../../crates/sequencer" }
-# citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
+citrea-sp1 = { path = "../../crates/sp1", features = ["native"] }
+citrea-sp1-batch-proof = { path = "../../guests/sp1/batch-proof" }
+citrea-sp1-light-client = { path = "../../guests/sp1/light-client-proof" }
 citrea-stf = { path = "../../crates/citrea-stf", features = ["native"] }
 citrea-storage-ops = { path = "../../crates/storage-ops" }
 ethereum-rpc = { path = "../../crates/ethereum-rpc" }
@@ -61,7 +60,6 @@ metrics-util = { workspace = true }
 reth-primitives = { workspace = true }
 reth-tasks = { workspace = true }
 reth-transaction-pool = { workspace = true }
-risc0-binfmt = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["signal"] }
@@ -71,7 +69,6 @@ tracing-subscriber = { workspace = true, features = ["json"] }
 [dev-dependencies]
 citrea-evm = { path = "../../crates/evm", features = ["native"] }
 citrea-primitives = { path = "../../crates/primitives", features = ["testing"] }
-citrea-risc0-adapter = { path = "../../crates/risc0", features = ["native", "testing"] }
 sov-mock-da = { path = "../../crates/sovereign-sdk/adapters/mock-da", default-features = false }
 sov-prover-storage-manager = { path = "../../crates/sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
 sov-rollup-interface = { path = "../../crates/sovereign-sdk/rollup-interface", features = ["testing"] }
@@ -93,7 +90,6 @@ jmt = { workspace = true }
 k256 = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
-risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 rs_merkle = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
@@ -103,16 +99,12 @@ uuid = { workspace = true }
 
 revm = { workspace = true }
 
-log = "0.4.22"
-regex = "1.10"
+log = "0.4.34"
 rustc_version_runtime = { workspace = true }
 
 # bitcoin-e2e dependencies
 bitcoin.workspace = true
 citrea-e2e = { workspace = true }
-
-[build-dependencies]
-sp1-helper = { version = "3.0.0", default-features = false }
 
 [features]
 default = [
@@ -121,8 +113,8 @@ default = [
 testing = [
   "bitcoin-da/testing",
   "citrea-primitives/testing",
-  "citrea-risc0-batch-proof/testing",
-  "citrea-risc0-light-client/testing",
+  "citrea-sp1-batch-proof/testing",
+  "citrea-sp1-light-client/testing",
   "sov-rollup-interface/testing",
 ]
 

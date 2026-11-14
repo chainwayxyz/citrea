@@ -2,7 +2,9 @@ use std::str::FromStr;
 
 use alloy_primitives::{Address, U64};
 use citrea_common::SequencerConfig;
-use citrea_evm::smart_contracts::{SimpleStorageContract, SimpleStorageDuplicatorContract};
+use citrea_evm::smart_contracts::{
+    SimpleStorageContract, SimpleStorageDuplicatorContract, TouchEmptyAccountsContract,
+};
 use citrea_stf::genesis_config::GenesisPaths;
 
 use super::init_test_rollup;
@@ -270,6 +272,108 @@ async fn diff_sizes() -> Result<(), anyhow::Error> {
             U64::from(52)
         );
     }
+
+    seq_task.graceful_shutdown();
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn diff_sizes_touched_empty_accounts() -> Result<(), anyhow::Error> {
+    // citrea::initialize_logging(tracing::Level::DEBUG);
+
+    let storage_dir = tempdir_with_children(&["DA", "sequencer", "full-node"]);
+    let da_db_dir = storage_dir.path().join("DA").to_path_buf();
+    let sequencer_db_dir = storage_dir.path().join("sequencer").to_path_buf();
+
+    let (seq_port_tx, seq_port_rx) = tokio::sync::oneshot::channel();
+
+    let rollup_config = create_default_rollup_config(
+        true,
+        &sequencer_db_dir,
+        &da_db_dir,
+        NodeMode::SequencerNode,
+        None,
+    );
+    let sequencer_config = SequencerConfig::default();
+
+    let seq_task = start_rollup(
+        seq_port_tx,
+        GenesisPaths::from_dir(TEST_DATA_GENESIS_PATH),
+        None,
+        None,
+        rollup_config,
+        Some(sequencer_config),
+        None,
+        false,
+    )
+    .await;
+
+    let seq_port = seq_port_rx.await.unwrap();
+    let seq_test_client = init_test_rollup(seq_port).await;
+
+    let contract = TouchEmptyAccountsContract::default();
+    let deploy_tx = seq_test_client
+        .deploy_contract(contract.byte_code(), None)
+        .await
+        .unwrap();
+
+    seq_test_client.send_publish_batch_request().await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    let contract_address = deploy_tx.get_receipt().await?.contract_address.unwrap();
+
+    let touched_accounts = [
+        Address::from([0x11; 20]),
+        Address::from([0x12; 20]),
+        Address::from([0x13; 20]),
+        Address::from([0x14; 20]),
+        Address::from([0x15; 20]),
+        Address::from([0x16; 20]),
+        Address::from([0x17; 20]),
+        Address::from([0x18; 20]),
+        Address::from([0x19; 20]),
+        Address::from([0x1a; 20]),
+    ];
+
+    let account_proof_before = seq_test_client
+        .eth_get_proof(touched_accounts[0], vec![], None)
+        .await
+        .unwrap();
+    let account_exists_before = account_proof_before
+        .account_proof
+        .last()
+        .map(|b| b.as_ref() == b"y")
+        .unwrap_or(false);
+
+    let first_touch_tx = seq_test_client
+        .contract_transaction(
+            contract_address,
+            contract.touch_call_data(&touched_accounts),
+            None,
+        )
+        .await;
+
+    seq_test_client.send_publish_batch_request().await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
+    let _first_touch_receipt = seq_test_client
+        .eth_get_transaction_receipt(*first_touch_tx.tx_hash())
+        .await
+        .unwrap();
+
+    let account_proof_after = seq_test_client
+        .eth_get_proof(touched_accounts[0], vec![], None)
+        .await
+        .unwrap();
+    let account_exists_after = account_proof_after
+        .account_proof
+        .last()
+        .map(|b| b.as_ref() == b"y")
+        .unwrap_or(false);
+
+    // Zero-value touches do not currently materialize accounts in this flow.
+    assert!(!account_exists_before);
+    assert!(!account_exists_after);
 
     seq_task.graceful_shutdown();
     Ok(())

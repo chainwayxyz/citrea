@@ -24,13 +24,13 @@ use citrea_light_client_prover::circuit::initial_values::bitcoinda::NIGHTLY_INIT
 use citrea_light_client_prover::rpc::LightClientProverRpcClient;
 use citrea_stf::runtime::DefaultContext;
 use reth_tasks::TaskManager;
-use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use sov_db::schema::types::L2HeightAndIndex;
 use sov_ledger_rpc::LedgerRpcClient;
 use sov_modules_api::BatchProofCircuitOutputV3;
 use sov_rollup_interface::da::{DaTxRequest, SequencerCommitment};
 use sov_rollup_interface::rpc::block::L2BlockResponse;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
+use sov_rollup_interface::zk::sp1::SP1Proof;
 use tokio::time::sleep;
 
 use super::light_client_test::{create_random_state_diff, TEN_MINS};
@@ -2205,6 +2205,11 @@ impl TestCase for OverlappingProofRangesTest {
             .unwrap();
 
         da.wait_mempool_len(2, None).await?;
+        // The rolled back full node resyncs L2 from genesis. A commitment found before its
+        // L2 blocks stays pending until a later L1 block, so sync them before mining it.
+        full_node
+            .wait_for_l2_height(commitment1.l2_end_block_number, None)
+            .await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitment_l1_height = da.get_finalized_height(None).await?;
 
@@ -2267,6 +2272,9 @@ impl TestCase for OverlappingProofRangesTest {
             index: 4,
         };
 
+        full_node
+            .wait_for_l2_height(commitment4.l2_end_block_number, None)
+            .await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
         full_node
@@ -2377,6 +2385,9 @@ impl TestCase for OverlappingProofRangesTest {
             .unwrap();
 
         da.wait_mempool_len(8, None).await?;
+        full_node
+            .wait_for_l2_height(commitment4.l2_end_block_number, None)
+            .await?;
         da.generate(DEFAULT_FINALITY_DEPTH).await?;
         let commitments_l1_height = da.get_finalized_height(None).await?;
         full_node
@@ -4054,11 +4065,11 @@ pub fn create_serialized_fake_receipt_batch_proof_with_state_roots(
         output_serialized.push(1u8);
     }
 
-    let claim = MaybePruned::Value(ReceiptClaim::ok(method_id, output_serialized.clone()));
-    let fake_receipt = FakeReceipt::new(claim);
-    // Receipt with verifiable claim
-    let receipt = InnerReceipt::Fake(fake_receipt);
-    bincode::serialize(&receipt).unwrap()
+    borsh::to_vec(&SP1Proof::Mock {
+        program: method_id,
+        public_values: output_serialized,
+    })
+    .unwrap()
 }
 
 struct StateDiffRpcTest;

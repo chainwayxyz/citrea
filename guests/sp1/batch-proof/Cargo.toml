@@ -1,0 +1,10 @@
+[package]
+name = "citrea-sp1-batch-proof"
+version = "2.10.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+resolver = "2"
+
+[features]
+testing = []

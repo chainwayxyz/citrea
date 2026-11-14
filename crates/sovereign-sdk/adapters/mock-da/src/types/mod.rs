@@ -150,6 +150,7 @@ impl BlockHeaderTrait for MockBlockHeader {
         self.bits
     }
 
+    #[cfg(feature = "native")]
     fn coinbase_txid_merkle_proof_height(&self) -> u64 {
         1
     }

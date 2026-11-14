@@ -20,6 +20,7 @@ use sov_rollup_interface::rpc::{
     BatchProofMethodIdRpcResponse, LightClientCircuitInputRpcResponse, LightClientProofResponse,
 };
 use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::zk::ZkvmHost;
 use sov_rollup_interface::Network;
 use sov_state::ProverStorage;
 
@@ -96,7 +97,7 @@ pub fn create_rpc_module<Da, DB, Vm>(
 where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: Zkvm + 'static,
+    Vm: ZkvmHost + 'static,
     Network: InitialValueProvider<Da::Spec>,
 {
     let server = LightClientProverRpcServerImpl::new(rpc_context);
@@ -112,7 +113,7 @@ pub fn register_rpc_methods<Da, DB, Vm>(
 where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: Zkvm + 'static,
+    Vm: ZkvmHost + 'static,
     Network: InitialValueProvider<Da::Spec>,
 {
     let rpc = create_rpc_module(rpc_context);
@@ -165,7 +166,7 @@ impl<Da, DB, Vm> LightClientProverRpcServerImpl<Da, DB, Vm>
 where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: Zkvm + 'static,
+    Vm: ZkvmHost + 'static,
     Network: InitialValueProvider<Da::Spec>,
 {
     /// Creates a new light client prover RPC server instance
@@ -187,7 +188,7 @@ impl<Da, DB, Vm> LightClientProverRpcServer for LightClientProverRpcServerImpl<D
 where
     Da: DaService,
     DB: LightClientProverLedgerOps + Clone + Send + Sync + 'static,
-    Vm: Zkvm + 'static,
+    Vm: ZkvmHost + 'static,
     Network: InitialValueProvider<Da::Spec>,
 {
     async fn get_light_client_proof_by_l1_height(
@@ -225,7 +226,7 @@ where
             .into_iter()
             .map(|id| BatchProofMethodIdRpcResponse {
                 height: alloy_primitives::U64::from(id.0),
-                method_id: id.1.into(),
+                method_id: id.1,
             })
             .collect::<Vec<_>>();
 
@@ -273,6 +274,7 @@ where
         let l1_hash = l1_block.header().hash().into();
         let raw_input = borsh::to_vec(&prepared.circuit_input).map_err(internal_rpc_error)?;
         Ok(LightClientCircuitInputRpcResponse {
+            assumptions: prepared.assumptions,
             l1_height: U64::from(l1_height),
             l1_hash,
             input: raw_input,

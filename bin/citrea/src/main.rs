@@ -12,9 +12,9 @@ use citrea::{
 use citrea_common::backup::BackupManager;
 use citrea_common::rpc::server::start_rpc_server;
 use citrea_common::rpc::{register_healthcheck_rpc, register_healthcheck_rpc_light_client_prover};
-use citrea_common::utils::is_dev_mode_enabled_via_environment;
 use citrea_common::{from_toml_path, FromEnv, FullNodeConfig, NodeType, StartVariant};
 use citrea_light_client_prover::circuit::initial_values::InitialValueProvider;
+use citrea_primitives::risc0_cutoff::{has_risc0_history, risc0_cutoff};
 use citrea_stf::genesis_config::GenesisPaths;
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use clap::Parser;
@@ -66,16 +66,11 @@ async fn main() -> anyhow::Result<()> {
         network = Network::Nightly;
     }
 
-    if args.dev_all_forks {
-        network = Network::TestNetworkWithForks;
+    if has_risc0_history(network) && risc0_cutoff(network).is_none() {
+        tracing::warn!("The RISC0 cutoff of {network} is not set, SP1 proving can't continue from its RISC0 proofs");
     }
 
     info!("Starting node on {network}");
-
-    // Prevent dev mode on mainnet
-    if network == Network::Mainnet && is_dev_mode_enabled_via_environment() {
-        panic!("RISC0_DEV_MODE is enabled but network is set to Mainnet. Dev mode SHOULD NOT be used on mainnet.");
-    }
 
     let stop_conditions = StopConditions {
         stop_at_l1_height: args.stop_at_l1_height,
@@ -129,9 +124,10 @@ where
             .context("Failed to read rollup configuration from the environment")?,
     };
 
-    if rollup_config.telemetry.bind_host.is_some() && rollup_config.telemetry.bind_port.is_some() {
-        let bind_host = rollup_config.telemetry.bind_host.as_ref().unwrap();
-        let bind_port = rollup_config.telemetry.bind_port.as_ref().unwrap();
+    if let (Some(bind_host), Some(bind_port)) = (
+        rollup_config.telemetry.bind_host.as_ref(),
+        rollup_config.telemetry.bind_port.as_ref(),
+    ) {
         let telemetry_addr: SocketAddr = format!("{bind_host}:{bind_port}")
             .parse()
             .map_err(|_| anyhow!("Invalid telemetry address"))?;
@@ -167,7 +163,7 @@ where
                 .iter()
                 .map(|table| table.to_string())
                 .collect::<Vec<_>>(),
-            citrea_fullnode::db_migrations::migrations(),
+            citrea_fullnode::db_migrations::migrations(Some(network)),
         ),
         NodeWithConfig::BatchProver(_) => (
             BATCH_PROVER_LEDGER_TABLES

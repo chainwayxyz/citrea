@@ -34,6 +34,13 @@ use crate::input_builder::{LightClientInputBuilder, PreparedLightClientCircuitIn
 use crate::lcp_storage::create_committable_lcp_storage_for_live_l1_block;
 use crate::metrics::LIGHT_CLIENT_METRICS as LPM;
 
+/// The wait before retrying queued L1 blocks after a failure, doubled after each failure of the
+/// same block in a row up to [`MAX_RETRY_DELAY`], so a block that fails every time, such as one
+/// whose proof the prover network rejects, is not retried every few seconds.
+const MIN_RETRY_DELAY: Duration = Duration::from_secs(60);
+/// The longest wait before retrying queued L1 blocks after failures.
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(60 * 60);
+
 /// Handler for processing L1 blocks and the relevant transactions within them.
 ///
 /// This component is responsible for processing finalized L1 blocks, running the light client proof circuit logic per L1 block,
@@ -145,7 +152,12 @@ where
 
         let backup_manager = self.backup_manager.clone();
         tokio::time::sleep(Duration::from_secs(1)).await; // Gives time for queue to fill up on startup
+
+        // After a failure, when to retry the queue, the delay that set it and the height of the
+        // block that failed.
+        let mut retry: Option<(tokio::time::Instant, Duration, Option<u64>)> = None;
         loop {
+            let retry_at = retry.map(|(at, ..)| at);
             select! {
                 biased;
                 _ = &mut shutdown_signal => {
@@ -153,10 +165,38 @@ where
                     return;
                 }
                 _ = &mut l1_sync_worker => {},
-                _ = notifier.notified() => {
+                // Blocks are still queued while a failed queue waits for its retry.
+                _ = async {
+                    match retry_at {
+                        Some(at) => tokio::time::sleep_until(at).await,
+                        None => notifier.notified().await,
+                    }
+                } => {
                     let _l1_guard = backup_manager.start_l1_processing().await;
-                    if let Err(e) = self.process_queued_l1_blocks(&shutdown_signal).await {
-                        error!("Could not process queued L1 blocks and generate proof: {:?}", e);
+                    match self.process_queued_l1_blocks(&shutdown_signal).await {
+                        Ok(()) => retry = None,
+                        Err(e) => {
+                            // The failed block is still first in the queue. Proving any block
+                            // since the last failure resets the delay.
+                            let failed = self
+                                .queued_l1_blocks
+                                .lock()
+                                .await
+                                .front()
+                                .map(|block| block.header().height());
+                            let delay = match retry {
+                                Some((_, delay, height)) if height == failed => {
+                                    (delay * 2).min(MAX_RETRY_DELAY)
+                                }
+                                _ => MIN_RETRY_DELAY,
+                            };
+                            retry = Some((tokio::time::Instant::now() + delay, delay, failed));
+                            LPM.failed_l1_block_attempts.increment(1);
+                            error!(
+                                "Could not process queued L1 blocks and generate proof, retrying in {:?}: {:?}",
+                                delay, e
+                            );
+                        }
                     }
                 },
             }
@@ -213,6 +253,7 @@ where
         let PreparedLightClientCircuitInput {
             spec_id,
             circuit_input,
+            assumptions,
             lcp_state_root,
             last_l2_height,
             change_set,
@@ -230,8 +271,16 @@ where
             .get(&spec_id)
             .expect("Fork should have a guest code attached")
             .clone();
+        let program = self
+            .light_client_proof_code_commitments
+            .get(&spec_id)
+            .expect("Fork should have a code commitment attached")
+            .clone()
+            .into();
 
-        let proof_with_duration = self.prove(light_client_elf, circuit_input, vec![]).await?;
+        let proof_with_duration = self
+            .prove(light_client_elf, program, circuit_input, assumptions)
+            .await?;
         let proof = proof_with_duration.proof;
 
         let circuit_output = Vm::extract_output::<LightClientCircuitOutput>(&proof)
@@ -280,6 +329,7 @@ where
     /// to generates a proof for the light client circuit.
     /// # Arguments
     /// * `light_client_elf` - The ELF binary for the light client proof circuit
+    /// * `program` - The pinned code commitment of `light_client_elf`
     /// * `circuit_input` - The input for the light client circuit
     /// * `assumptions` - Assumptions used in the proving process
     ///
@@ -288,6 +338,7 @@ where
     async fn prove(
         &self,
         light_client_elf: Vec<u8>,
+        program: [u32; 8],
         circuit_input: LightClientCircuitInput<<Da as DaService>::Spec>,
         assumptions: Vec<Vec<u8>>,
     ) -> Result<ProofWithDuration, anyhow::Error> {
@@ -295,7 +346,8 @@ where
             input: borsh::to_vec(&circuit_input)?,
             assumptions,
             elf: light_client_elf,
+            program,
         };
-        self.prover_service.prove(data, ReceiptType::Groth16).await
+        self.prover_service.prove(data, ReceiptType::Succinct).await
     }
 }

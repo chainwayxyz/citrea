@@ -169,7 +169,7 @@ impl TestCase for BackupSequencerTest {
         assert!(backup_info.contains_key("native"));
 
         // Check that each database has valid backup info
-        for (_, infos) in backup_info.iter() {
+        for infos in backup_info.values() {
             // There should be at least one backup
             assert!(!infos.is_empty());
 

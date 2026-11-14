@@ -465,7 +465,7 @@ where
         &mut self,
         guest: &impl ZkvmGuest,
         sequencer_public_key: &[u8],
-        initial_prev_l2_block_hash: Option<[u8; 32]>,
+        initial_prev_l2_block_hash: [u8; 32],
         initial_state_root: &StorageRootHash,
         pre_state: C::Storage,
         previous_sequencer_commitment: Option<SequencerCommitment>,
@@ -494,9 +494,8 @@ where
 
         // prev_l2_block_hash is extracted from the previous_sequencer_commitment, but previous_sequencer_commitment
         // is always None for the first proof of each network. Hence, we hardcode the initial_prev_l2_block_hash as
-        // constant into the guest binary. But for the TestNetworkWithForks we can't know the initial_prev_l2_block_hash
-        // because it changes on every test run, hence, in that case, prev_l2_block_hash becomes None.
-        let mut prev_l2_block_hash: Option<[u8; 32]> = match &previous_sequencer_commitment {
+        // constant into the guest binary.
+        let mut prev_l2_block_hash: [u8; 32] = match &previous_sequencer_commitment {
             Some(commitment) => {
                 let prev_hash_proof = prev_hash_proof
                     .expect("Previous sequencer commitment must have a prev hash proof");
@@ -532,7 +531,7 @@ where
                     "Prev hash proof must be valid"
                 );
 
-                Some(last_header_hash)
+                last_header_hash
             }
             None => {
                 assert!(prev_hash_proof.is_none());
@@ -595,6 +594,7 @@ where
         let mut sequencer_commitment_l2_start_height = current_batch_proof_first_l2_height;
 
         let mut last_commitment_end_height = previous_batch_proof_l2_end_height;
+        let mut last_commitment_index = previous_commitment_index.unwrap_or(0);
 
         // Reusable log caches
         let mut cumulative_state_log = None;
@@ -606,15 +606,22 @@ where
         state_roots.push(*initial_state_root);
 
         for sequencer_commitment in sequencer_commitments.into_iter() {
-            // if the commitment is not sequential, then the proof is invalid.
-
+            // if the commitment is not sequential by l2 block height, then the proof is invalid.
             assert_eq!(
                 last_commitment_end_height + 1,
                 sequencer_commitment_l2_start_height,
-                "Sequencer commitments must be sequential"
+                "Sequencer commitments l2 heights must be sequential"
+            );
+
+            // if the commitment is not sequential by index, then the proof is invalid.
+            assert_eq!(
+                last_commitment_index + 1,
+                sequencer_commitment.index,
+                "Sequencer commitments indices must be sequential"
             );
 
             last_commitment_end_height = sequencer_commitment.l2_end_block_number;
+            last_commitment_index = sequencer_commitment.index;
 
             // we must verify given DA headers match the commitments
 
@@ -638,13 +645,11 @@ where
                     "L2 block height is not equal to the expected height"
                 );
 
-                if let Some(prev_hash) = prev_l2_block_hash {
-                    assert_eq!(
-                        l2_block.prev_hash(),
-                        prev_hash,
-                        "L2 block previous hash must match the hash of the block before"
-                    );
-                }
+                assert_eq!(
+                    l2_block.prev_hash(),
+                    prev_l2_block_hash,
+                    "L2 block previous hash must match the hash of the block before"
+                );
 
                 fork_manager.register_block(l2_height).unwrap();
 
@@ -684,7 +689,7 @@ where
                 }
 
                 l2_height += 1;
-                prev_l2_block_hash = Some(l2_block.hash());
+                prev_l2_block_hash = l2_block.hash();
                 l2_block_hashes.push(l2_block.hash());
 
                 cumulative_state_log = Some(state_log);
@@ -713,7 +718,7 @@ where
             state_diff,
             // There has to be a height
             last_l2_height: last_commitment_end_height,
-            final_l2_block_hash: prev_l2_block_hash.unwrap(),
+            final_l2_block_hash: prev_l2_block_hash,
             sequencer_commitment_hashes,
             sequencer_commitment_index_range,
             cumulative_state_log: cumulative_state_log.unwrap(),

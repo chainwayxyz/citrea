@@ -42,7 +42,6 @@ alloy-rpc-types-eth = { workspace = true, optional = true }
 alloy-rpc-types-trace = { workspace = true, optional = true }
 alloy-serde = { workspace = true, optional = true }
 alloy-sol-types = { workspace = true }
-itertools = { workspace = true, optional = true }
 k256 = { workspace = true, features = ["schnorr"] }
 reth-primitives = { workspace = true, default-features = false }
 reth-primitives-traits = { workspace = true, default-features = false }
@@ -71,7 +70,7 @@ reth-chainspec = { workspace = true }
 reth-db = { workspace = true }
 reth-errors = { workspace = true }
 reth-rpc-eth-types = { workspace = true }
-rstest = "0.22.0"
+rstest = "0.28.0"
 secp256k1 = { workspace = true }
 sha2 = { workspace = true }
 sov-keys = { path = "../sovereign-sdk/module-system/sov-keys" }
@@ -109,7 +108,6 @@ native = [
 
   "dep:hex",
   "dep:jsonrpsee",
-  "dep:itertools",
   "dep:serde_json",
   "dep:tokio",
   "dep:tracing",

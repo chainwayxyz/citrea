@@ -238,7 +238,7 @@ impl<'a, C: Context> ModuleVisitor<'a, C> {
     fn visit_module(
         &mut self,
         module: &'a dyn ModuleInfo<Context = C>,
-        module_map: &HashMap<&<C as Spec>::Address, &'a (dyn ModuleInfo<Context = C>)>,
+        module_map: &HashMap<&<C as Spec>::Address, &'a dyn ModuleInfo<Context = C>>,
     ) -> Result<(), anyhow::Error> {
         let address = module.address();
 

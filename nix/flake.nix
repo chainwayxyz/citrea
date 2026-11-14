@@ -22,7 +22,7 @@
           overlays = [ (import rust-overlay) ];
         };
 
-        rustToolchain = pkgs.rust-bin.stable."1.88.0".minimal.override {
+        rustToolchain = pkgs.rust-bin.stable."1.97.0".minimal.override {
           extensions = [ "rust-src" "clippy" "rustfmt" ];
         };
 
@@ -46,7 +46,7 @@
         # Source filtering: Rust sources + non-Rust assets the workspace consumes at
         # compile time. Anything else is excluded so deps-only caching isn't invalidated
         # by unrelated changes.
-        # - resources/, guests/: workspace layout + risc0 ELFs embedded via include_bytes!
+        # - resources/, guests/: workspace layout + sp1 ELFs embedded via include_bytes!
         # - README.md: several crates use #![doc = include_str!("../README.md")]
         # - crates/evm/src/evm/**/*.{json,abi,bin}: consumed by sol!() and include_str!()
         #   (system_contracts/out/*.sol/*.json artifacts and test_data/*.{abi,bin})
@@ -59,8 +59,39 @@
             || (builtins.match ".*/crates/evm/src/evm/.*\\.(json|abi|bin)$" path != null);
         };
 
-        commonArgs = {
+        # SP1's runner otherwise resolves its packaged Cargo.lock and launches a
+        # nested build outside our workspace. Use our lockfile and vendor set for
+        # both metadata and compilation, and preserve Nix's path remapping in the
+        # helper embedded into the final binary.
+        cargoVendorDir = craneLib.vendorCargoDeps {
           inherit src;
+          overrideVendorCargoPackage = package: drv:
+            if package.name == "sp1-core-executor-runner" then
+              drv.overrideAttrs (old: {
+                postPatch = (old.postPatch or "") + ''
+                  substituteInPlace build.rs \
+                    --replace-fail 'let metadata = MetadataCommand::new().exec().expect("Failed to run cargo metadata");' \
+                      'let manifest = env::var("CITREA_WORKSPACE_MANIFEST").expect("Nix workspace manifest");
+                      let metadata = MetadataCommand::new().manifest_path(&manifest).other_options(vec!["--locked".into(), "--offline".into()]).exec().expect("Failed to run cargo metadata");' \
+                    --replace-fail 'cmd.arg("build").arg("--manifest-path").arg(inner_manifest_path);' \
+                      'cmd.arg("build").arg("--manifest-path").arg(&manifest).arg("--package").arg(INNER_CRATE_NAME).arg("--locked").arg("--offline");' \
+                    --replace-fail 'cmd.env_remove("RUSTFLAGS");' \
+                      'cmd.env("RUSTFLAGS", env::var("RUSTFLAGS").unwrap_or_default());'
+                '' + pkgs.lib.optionalString (system == "x86_64-linux") ''
+                  # The x86 executor extracts this embedded ELF at runtime. Give
+                  # it the same portable loader as the published node binaries
+                  # before SP1 hashes and embeds its bytes.
+                  substituteInPlace build.rs \
+                    --replace-fail '// 6. Calculates and passes binary hash' \
+                      'assert!(Command::new("${pkgs.patchelf}/bin/patchelf").arg("--set-interpreter").arg("${linuxElfInterpreter}").arg(&bin_path).status().expect("Patch embedded runner interpreter").success());
+                      // 6. Calculates and passes binary hash'
+                '';
+              })
+            else drv;
+        };
+
+        commonArgs = {
+          inherit src cargoVendorDir;
           pname = "citrea";
           version =
             let
@@ -72,6 +103,7 @@
 
           nativeBuildInputs = with pkgs; [
             pkg-config
+            protobuf
             cmake
             clang
             llvmPackages.libclang
@@ -93,20 +125,17 @@
           TZ = "UTC";
           ZERO_AR_DATE = "1";
           CARGO_INCREMENTAL = "0";
+          CARGO_NET_OFFLINE = "true";
           # Avoid host-dependent jemalloc rtree sizing on machines with 5-level paging.
           JEMALLOC_SYS_WITH_LG_VADDR = "48";
           LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+          PROTOC_INCLUDE = "${pkgs.protobuf}/include";
 
           # GCC 14 promoted -Wint-conversion to an error by default, which breaks
           # the bundled jemalloc in tikv-jemalloc-sys 0.6.0 (its strerror_r call
           # predates the XSI-compliant prototype). Demote it back to a warning.
-          #
-          # blst otherwise probes the build host and may compile an ADX/BMI2-only
-          # path on newer x86_64 CPUs. Force its portable dispatch path there so
-          # Nix release binaries do not depend on the runner CPU.
           NIX_CFLAGS_COMPILE =
-            "-Wno-int-conversion"
-            + pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isx86_64 " -D__BLST_PORTABLE__";
+            "-Wno-int-conversion";
 
           RUSTFLAGS = builtins.concatStringsSep " " [
             "--remap-path-prefix=${src}=/build/source"
@@ -116,6 +145,7 @@
           cargoExtraArgs = "--locked";
 
           preBuild = ''
+            export CITREA_WORKSPACE_MANIFEST="$PWD/Cargo.toml"
             export RUSTFLAGS="$RUSTFLAGS --remap-path-prefix=$(pwd)=/build/source"
           '' + pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin ''
             export RUSTFLAGS="$RUSTFLAGS -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"

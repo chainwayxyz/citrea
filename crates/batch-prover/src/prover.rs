@@ -10,7 +10,8 @@ use anyhow::Context;
 use citrea_common::utils::{get_tangerine_activation_height_non_zero, merge_state_diffs};
 use citrea_common::{BatchProverConfig, ProverGuestRunConfig};
 use citrea_primitives::compression::compress_blob;
-use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::forks::{fork_from_block_number, proof_guest_spec_id};
+use citrea_primitives::risc0_cutoff::{risc0_cutoff, Risc0Cutoff};
 use citrea_primitives::{network_to_dev_mode, MAX_TX_BODY_SIZE, MAX_WITNESS_CACHE_SIZE};
 use citrea_stf::runtime::{CitreaRuntime, DefaultContext};
 use prover_services::{ParallelProverService, ProofData, ProofWithDuration};
@@ -99,6 +100,8 @@ where
     proving_paused: bool,
     /// Citrea network the batch prover is operating on
     network: Network,
+    /// RISC0 cutoff of the network, the commitments up to P0 are proven by RISC0
+    risc0_cutoff: Option<Risc0Cutoff>,
 }
 
 impl<Da, DB, Vm> Prover<Da, DB, Vm>
@@ -149,6 +152,7 @@ where
             sync_target_l2_height: None,
             proving_paused: false,
             network,
+            risc0_cutoff: risc0_cutoff(network),
         }
     }
 
@@ -292,6 +296,24 @@ where
         }
 
         let mut commitments = self.ledger_db.get_prover_pending_commitments()?;
+        // Commitments up to P0 are proven by RISC0, they are only needed as previous commitments
+        if let Some(p0) = &self.risc0_cutoff {
+            let (proven_by_risc0, after_cutoff): (Vec<_>, Vec<_>) = commitments
+                .into_iter()
+                .partition(|c| c.index <= p0.last_sequencer_commitment_index);
+            if !proven_by_risc0.is_empty() {
+                info!(
+                    "Dropping {} pending commitment(s) proven by RISC0",
+                    proven_by_risc0.len()
+                );
+                self.ledger_db
+                    .delete_prover_pending_commitments(
+                        proven_by_risc0.iter().map(|c| c.index).collect(),
+                    )
+                    .context("Failed to delete pending commitments proven by RISC0")?;
+            }
+            commitments = after_cutoff;
+        }
         if commitments.is_empty() {
             debug!("No pending commitments found");
             return Ok(Vec::new());
@@ -307,7 +329,7 @@ where
         let (proving_jobs_tx, proving_jobs_rx) = mpsc::unbounded_channel();
 
         // start watching the proving jobs to finish in the background
-        self.watch_proving_jobs(proving_jobs_rx);
+        let _watcher = self.watch_proving_jobs(proving_jobs_rx);
 
         let mut job_ids = Vec::with_capacity(partitions.len());
         for partition in partitions {
@@ -318,10 +340,6 @@ where
 
             // start the proving job in the background
             let rx = self.start_proving(input, id).await?;
-            proving_jobs_tx
-                .send((id, rx))
-                .context("Failed to send proving job to watcher")?;
-            job_ids.push(id);
 
             let commitment_indices = partition
                 .commitments
@@ -329,13 +347,18 @@ where
                 .map(|comm| comm.index)
                 .collect::<Vec<_>>();
 
-            // insert the proving job to the ledger db, and delete the pending commitments
+            // Register the job before the watcher can process its result.
             self.ledger_db
                 .insert_new_proving_job(id, &commitment_indices)
                 .context("Failed to insert prover job")?;
             self.ledger_db
                 .delete_prover_pending_commitments(commitment_indices)
                 .context("Failed to delete pending commitments")?;
+
+            proving_jobs_tx
+                .send((id, rx))
+                .context("Failed to send proving job to watcher")?;
+            job_ids.push(id);
         }
 
         assert!(!job_ids.is_empty(), "received empty jobs list");
@@ -582,6 +605,18 @@ where
         partition: &Partition<'_>,
         _job_id: Uuid,
     ) -> anyhow::Result<BatchProofCircuitInputV3> {
+        let first_commitment = &partition.commitments[0];
+        if let Some(p0) = &self.risc0_cutoff {
+            if first_commitment.index <= p0.last_sequencer_commitment_index {
+                error!("Batch prover started from too low L1 height! V3 only supports after risc0 cutoff");
+                anyhow::bail!(
+                    "Commitment {} is proven by RISC0, V3 only proves commitments after {}",
+                    first_commitment.index,
+                    p0.last_sequencer_commitment_index
+                );
+            }
+        }
+
         let input_preparation_start = std::time::Instant::now();
         let initial_state_root = self
             .ledger_db
@@ -609,7 +644,6 @@ where
         )
         .context("Failed to get circuit input from commitments")?;
 
-        let first_commitment = &partition.commitments[0];
         let previous_sequencer_commitment = (first_commitment.index != 1).then(|| {
             self.ledger_db
                 .get_commitment_by_index(first_commitment.index - 1)
@@ -659,20 +693,21 @@ where
         input: BatchProofCircuitInputV3,
         job_id: Uuid,
     ) -> anyhow::Result<oneshot::Receiver<ProofWithDuration>> {
-        let end_l2_height = input
-            .sequencer_commitments
-            .last()
-            .expect("Must have 1")
-            .l2_end_block_number;
-        let current_spec = fork_from_block_number(end_l2_height).spec_id;
+        let guest_spec = proof_guest_spec_id();
 
         let elf = self
             .elfs_by_spec
-            .get(&current_spec)
-            .expect("Every fork should have an elf attached")
+            .get(&guest_spec)
+            .expect("Proof guest spec must have an elf")
             .clone();
+        let program = self
+            .code_commitments_by_spec
+            .get(&guest_spec)
+            .expect("Proof guest spec must have a code commitment")
+            .clone()
+            .into();
 
-        tracing::info!("Starting proving with ELF of spec: {:?}", current_spec);
+        tracing::info!("Starting proving with ELF of spec: {:?}", guest_spec);
 
         let input = borsh::to_vec(&input.into_v3_parts()).expect("Input serialization cannot fail");
 
@@ -680,6 +715,7 @@ where
             input,
             assumptions: vec![],
             elf,
+            program,
         };
 
         self.prover_service
@@ -705,7 +741,7 @@ where
     fn watch_proving_jobs(
         &self,
         mut proving_jobs: mpsc::UnboundedReceiver<(Uuid, oneshot::Receiver<ProofWithDuration>)>,
-    ) {
+    ) -> tokio::task::JoinHandle<()> {
         let ledger_db = self.ledger_db.clone();
         let prover_service = self.prover_service.clone();
         let code_commitments_by_spec = self.code_commitments_by_spec.clone();
@@ -714,11 +750,18 @@ where
         // start watching the proving jobs to finish in the background
         tokio::spawn(async move {
             while let Some((job_id, rx)) = proving_jobs.recv().await {
-                let ProofWithDuration {
+                let Ok(ProofWithDuration {
                     proof,
                     duration,
                     info,
-                } = rx.await.expect("Proof channel should never close");
+                }) = rx.await
+                else {
+                    error!(
+                        "Proving job {} failed; retry it through RPC or restart the prover",
+                        job_id
+                    );
+                    continue;
+                };
                 info!(
                     "Proving job finished {}, took {:?} seconds",
                     job_id, duration
@@ -753,7 +796,7 @@ where
                         .expect("Should update proving job tx id");
                 });
             }
-        });
+        })
     }
 
     /// Resubmits proofs for jobs that finished proving but did not get submitted to DA before
@@ -1175,8 +1218,8 @@ fn get_prev_hash_proof<DB: BatchProverLedgerOps>(
 
 /// This function extracts the proof output from the given proof and verifies it using the provided code commitments.
 /// It uses the `Vm` trait to extract the output and verify the proof.
-/// It also checks the last L2 height in the output to determine the spec ID,
-/// and retrieves the corresponding code commitment from the `code_commitments_by_spec` map.
+/// It verifies against the code commitment of [`proof_guest_spec_id`] from the
+/// `code_commitments_by_spec` map.
 /// If the proof verification fails, it panics with an error message containing the job ID.
 ///
 /// # Arguments
@@ -1195,14 +1238,9 @@ fn extract_proof_output<Vm: ZkvmHost>(
     let output = Vm::extract_output::<BatchProofCircuitOutput>(proof)
         .expect("Failed to extract batch proof output");
 
-    let last_l2_height = match &output {
-        BatchProofCircuitOutput::V3(v3) => v3.last_l2_height,
-    };
-    let spec = fork_from_block_number(last_l2_height).spec_id;
-
     let code_commitment = code_commitments_by_spec
-        .get(&spec)
-        .expect("Proof public input must contain valid spec id");
+        .get(&proof_guest_spec_id())
+        .expect("Proof guest spec must have a code commitment");
 
     info!(
         "Verifying proof with job_id={} using image ID: {:?}",
@@ -1238,12 +1276,12 @@ mod tests {
     use sov_modules_api::{L2Block, SpecId};
     use sov_prover_storage_manager::ProverStorageManager;
     use sov_rollup_interface::block::{L2Header, SignedL2Header};
-    use sov_rollup_interface::da::SequencerCommitment;
+    use sov_rollup_interface::da::{LatestDaState, SequencerCommitment};
     use tempfile::TempDir;
     use tokio::sync::{broadcast, mpsc};
 
-    use super::{Prover, ProverRequest};
-    use crate::partition::PartitionMode;
+    use super::{Prover, ProverRequest, Risc0Cutoff};
+    use crate::partition::{Partition, PartitionMode};
 
     // This might be a bit problematic if another unit test in this crate wants
     // to use different set of forks for any reason.
@@ -1313,6 +1351,24 @@ mod tests {
         }
     }
 
+    #[tokio::test(flavor = "multi_thread")]
+    async fn watcher_survives_failed_proofs() {
+        let data = create_mock_prover();
+        let (jobs_tx, jobs_rx) = mpsc::unbounded_channel();
+        let watcher = data.prover.watch_proving_jobs(jobs_rx);
+        for _ in 0..2 {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            jobs_tx.send((uuid::Uuid::new_v4(), rx)).unwrap();
+            drop(tx);
+        }
+        drop(jobs_tx);
+
+        tokio::time::timeout(std::time::Duration::from_secs(5), watcher)
+            .await
+            .expect("watcher should drain the queue")
+            .expect("failed proofs must not panic the watcher");
+    }
+
     fn put_l2_blocks(ledger_db: &LedgerDB, l2_block_data: Vec<(u64, usize)>) {
         for (l2_height, diff_size) in l2_block_data {
             let l2_block = L2Block::new(
@@ -1340,6 +1396,107 @@ mod tests {
     fn put_commitments(ledger_db: &LedgerDB, commitments: &[SequencerCommitment]) {
         for commitment in commitments {
             ledger_db.put_commitment_by_index(commitment).unwrap();
+        }
+    }
+
+    /// Synthetic cutoff: RISC0 proved up to commitment 3, which ends at L2 height 3.
+    const RISC0_CUTOFF: Risc0Cutoff = Risc0Cutoff {
+        // Only the light client prover uses P0's DA state
+        da_state: LatestDaState {
+            block_hash: [0; 32],
+            block_height: 100,
+            total_work: [0; 32],
+            current_target_bits: 0,
+            epoch_start_time: 0,
+            prev_11_timestamps: [0; 11],
+        },
+        l2_state_root: [3; 32],
+        last_l2_height: 3,
+        last_sequencer_commitment_index: 3,
+        lc_state_root: [4; 32],
+    };
+
+    /// Commitment `index` ends at L2 height `index`.
+    fn cutoff_commitments(indices: std::ops::RangeInclusive<u32>) -> Vec<SequencerCommitment> {
+        indices
+            .map(|index| SequencerCommitment {
+                merkle_root: [index as u8; 32],
+                index,
+                l2_end_block_number: index.into(),
+            })
+            .collect()
+    }
+
+    /// The pending commitments up to P0 are dropped and remain known as previous commitments.
+    /// The ones after it stay pending until their L2 blocks are synced, then they are
+    /// partitioned starting after P0.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn try_proving_drops_commitments_proven_by_risc0() {
+        for mode in [PartitionMode::OneByOne, PartitionMode::Normal] {
+            let MockProverData { mut prover, .. } = create_mock_prover();
+            prover.risc0_cutoff = Some(RISC0_CUTOFF);
+            put_l2_blocks(&prover.ledger_db, (1..=3).map(|h| (h, 0)).collect());
+            let commitments = cutoff_commitments(1..=5);
+            put_commitments(&prover.ledger_db, &commitments);
+            for commitment in &commitments {
+                prover
+                    .ledger_db
+                    .put_prover_pending_commitment(commitment.index)
+                    .unwrap();
+            }
+
+            assert!(prover.try_proving(mode, false).await.unwrap().is_empty());
+            let mut pending = prover.ledger_db.get_prover_pending_commitments().unwrap();
+            assert_eq!(pending, commitments[3..], "{mode:?}");
+            for commitment in &commitments[..3] {
+                let index = commitment.index;
+                assert!(prover
+                    .ledger_db
+                    .get_job_id_by_commitment_index(index)
+                    .unwrap()
+                    .is_none());
+                assert_eq!(
+                    prover.ledger_db.get_commitment_by_index(index).unwrap(),
+                    Some(commitment.clone())
+                );
+            }
+
+            put_l2_blocks(&prover.ledger_db, (4..=5).map(|h| (h, 0)).collect());
+            let partitions = prover.create_partitions(&mut pending, mode).unwrap();
+            assert_eq!(partitions[0].start_height, 4, "{mode:?}");
+            let partitioned: Vec<_> = partitions
+                .iter()
+                .flat_map(|partition| partition.commitments.iter().map(|c| c.index))
+                .collect();
+            assert_eq!(partitioned, [4, 5], "{mode:?}");
+        }
+    }
+
+    /// Partitions whose first commitment is up to P0 are rejected before their input is
+    /// created. Commitment 3 ends exactly at `P0.last_l2_height`, the spec's L2 height check
+    /// `end_l2_height < P0.last_l2_height` would accept it.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn create_circuit_input_rejects_partitions_starting_up_to_risc0_cutoff() {
+        let MockProverData { mut prover, .. } = create_mock_prover();
+        prover.risc0_cutoff = Some(RISC0_CUTOFF);
+        put_l2_blocks(&prover.ledger_db, (1..=5).map(|h| (h, 0)).collect());
+        let commitments = cutoff_commitments(1..=5);
+        put_commitments(&prover.ledger_db, &commitments);
+
+        for range in [0..1, 2..3, 1..3, 2..4, 2..5] {
+            let partition = Partition {
+                commitments: &commitments[range.clone()],
+                start_height: range.start as u64 + 1,
+                end_height: range.end as u64,
+            };
+            let error = prover
+                .create_circuit_input(&partition, uuid::Uuid::nil())
+                .err()
+                .unwrap_or_else(|| panic!("{range:?} must be rejected"));
+            assert!(
+                error.to_string().contains("is proven by RISC0"),
+                "{range:?}: {error}"
+            );
         }
     }
 

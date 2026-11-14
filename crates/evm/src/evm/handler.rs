@@ -29,7 +29,7 @@ use revm::{Context, Database, ExecuteEvm, Journal, JournalEntry};
 #[cfg(feature = "native")]
 use revm::{InspectEvm, Inspector};
 use revm_precompile::secp256r1::P256VERIFY;
-use revm_precompile::{bls12_381, Precompiles};
+use revm_precompile::Precompiles;
 use sov_modules_api::{native_debug, native_error};
 #[cfg(feature = "native")]
 use tracing::instrument;
@@ -376,10 +376,8 @@ pub fn prague() -> &'static Precompiles {
     static INSTANCE: OnceLock<Box<Precompiles>> = OnceLock::new();
     INSTANCE.get_or_init(|| {
         let mut precompiles = cancun().clone();
-        // Add prague precompiles
-        // Effectively skipping kzg precompiles in Cancun
-        precompiles.extend(bls12_381::precompiles());
 
+        // Citrea's own precompiles; KZG (Cancun) and BLS12-381 (EIP-2537) are not enabled.
         precompiles.extend([P256VERIFY, SCHNORRVERIFY]);
         Box::new(precompiles)
     })
@@ -481,10 +479,10 @@ where
             let state = caller_account.info.nonce;
             match tx.cmp(&state) {
                 Ordering::Greater => {
-                    return Err(InvalidTransaction::NonceTooHigh { tx, state })?;
+                    Err(InvalidTransaction::NonceTooHigh { tx, state })?;
                 }
                 Ordering::Less => {
-                    return Err(InvalidTransaction::NonceTooLow { tx, state })?;
+                    Err(InvalidTransaction::NonceTooLow { tx, state })?;
                 }
                 _ => {}
             }

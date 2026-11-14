@@ -1,0 +1,46 @@
+#![no_main]
+use citrea_primitives::forks::NIGHTLY_FORKS;
+use citrea_sp1::guest::SP1Guest;
+use citrea_stf::runtime::CitreaRuntime;
+use citrea_stf::verifier::StateTransitionVerifier;
+use sov_mock_da::MockDaSpec;
+use sov_modules_api::default_context::ZkDefaultContext;
+use sov_modules_api::fork::Fork;
+use sov_modules_stf_blueprint::StfBlueprint;
+use sov_rollup_interface::zk::ZkvmGuest;
+use sov_state::ZkStorage;
+
+sp1_zkvm::entrypoint!(main);
+
+const SEQUENCER_PUBLIC_KEY: [u8; 33] = match const_hex::const_decode_to_array(
+    b"036360e856310ce5d294e8be33fc807077dc56ac80d95d9cd4ddbd21325eff73f7",
+) {
+    Ok(pub_key) => pub_key,
+    Err(_) => panic!("Can't happen"),
+};
+
+const INITIAL_PREV_L2_BLOCK_HASH: [u8; 32] = [0; 32];
+
+const FORKS: &[Fork] = &NIGHTLY_FORKS;
+
+pub fn main() {
+    let guest = SP1Guest::new();
+    let storage = ZkStorage::new();
+    let stf = StfBlueprint::new();
+
+    let mut stf_verifier: StateTransitionVerifier<
+        ZkDefaultContext,
+        MockDaSpec,
+        CitreaRuntime<_, _>,
+    > = StateTransitionVerifier::new(stf);
+
+    let out = stf_verifier.run_sequencer_commitments_in_da_slot(
+        &guest,
+        storage,
+        &SEQUENCER_PUBLIC_KEY,
+        INITIAL_PREV_L2_BLOCK_HASH,
+        FORKS,
+    );
+
+    guest.commit(&out);
+}

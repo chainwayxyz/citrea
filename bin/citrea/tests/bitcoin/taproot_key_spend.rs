@@ -69,7 +69,7 @@ async fn test_key_spend_recovery(
         sighash_type,
     )?;
 
-    let signature = SECP256K1.sign_schnorr(&sighash.into(), &tweaked_key_pair.to_inner());
+    let signature = SECP256K1.sign_schnorr(&sighash.into(), tweaked_key_pair.as_keypair());
 
     let witness_signature = bitcoin::taproot::Signature {
         signature,

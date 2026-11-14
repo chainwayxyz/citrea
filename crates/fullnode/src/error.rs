@@ -20,6 +20,17 @@ pub enum ProofError {
     /// Error when the sequencer commitment hash doesn't match the expected value
     #[error("Proof verification: For a known and verified sequencer commitment. Hash mismatch - expected 0x{0} but got 0x{1}. Skipping proof.")]
     SequencerCommitmentHashMismatch(String, String),
+    /// Error when the proof's sequencer commitment index range ends before it starts
+    #[error("Proof verification: Sequencer commitment index range {0}-{1} is not ascending. Skipping proof.")]
+    InvalidCommitmentIndexRange(u32, u32),
+    /// Error when the proof carries a number of commitment hashes that doesn't
+    /// match the cardinality of its commitment index range
+    #[error("Proof verification: Sequencer commitment index range {0}-{1} covers {2} commitments but the proof carries {3} commitment hashes. Skipping proof.")]
+    CommitmentIndexRangeHashCountMismatch(u32, u32, usize, usize),
+    /// Error when the proof's last L2 height doesn't match the L2 end height of
+    /// the last sequencer commitment in its index range
+    #[error("Proof verification: Last L2 height mismatch - proof claims {0} but sequencer commitment {1} ends at L2 height {2}. Skipping proof.")]
+    LastL2HeightMismatch(u64, u32, u64),
     /// Other general errors that may occur during proof processing
     #[error("{0}")]
     Other(#[from] anyhow::Error),

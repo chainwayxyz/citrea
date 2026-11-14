@@ -65,7 +65,7 @@ Here's how the bridge circuit works:
 
 2. **Proof Verification**
 - The Clementine **Bridge Circuit** consumes the LCP which is produced for the Payout block hash that is committed by the operator on chain.
-- LCP circuit Verification is performed using the **RISC0** API.
+- LCP circuit Verification is performed using the **SP1** API.
 - If valid, the **L2 state root** is extracted from the proof output.
 
 3. **Storage Proof Preparation**

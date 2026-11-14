@@ -5,6 +5,7 @@ use std::sync::Arc;
 use alloy_primitives::{eip191_hash_message, B256};
 use alloy_signer::SignerSync;
 use alloy_signer_local::PrivateKeySigner;
+use citrea_primitives::risc0_cutoff::{risc0_cutoff, Risc0Cutoff};
 use rand::{thread_rng, Rng};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec, MockDaVerifier};
 use sov_mock_zkvm::{MockCodeCommitment, MockJournal, MockProof, MockZkvm};
@@ -75,7 +76,31 @@ pub(crate) fn create_mock_batch_proof(
     prev_commitment_hash: Option<[u8; 32]>,
     batch_prover_da_pubkey: [u8; 32],
 ) -> MockBlob {
-    let batch_proof_method_id = MockCodeCommitment([0u8; 32]);
+    create_mock_batch_proof_of_program(
+        [0u32; 8],
+        initial_state_root,
+        last_l2_height,
+        is_valid,
+        last_l1_hash_on_bitcoin_light_client_contract,
+        sequencer_commitments,
+        prev_commitment_hash,
+        batch_prover_da_pubkey,
+    )
+}
+
+/// Like [`create_mock_batch_proof`], for a batch proof of the given program.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn create_mock_batch_proof_of_program(
+    batch_proof_method_id: [u32; 8],
+    initial_state_root: [u8; 32],
+    last_l2_height: u64,
+    is_valid: bool,
+    last_l1_hash_on_bitcoin_light_client_contract: [u8; 32],
+    sequencer_commitments: Vec<SequencerCommitment>,
+    prev_commitment_hash: Option<[u8; 32]>,
+    batch_prover_da_pubkey: [u8; 32],
+) -> MockBlob {
+    let batch_proof_method_id = MockCodeCommitment::from(batch_proof_method_id);
 
     let commitment_hashes: Vec<[u8; 32]> = sequencer_commitments
         .iter()
@@ -355,6 +380,15 @@ pub(crate) fn create_random_state_diff(size_in_kb: u64) -> BTreeMap<Arc<[u8]>, O
     map
 }
 
+/// State after an L1 block, computed by [`NativeCircuitRunner::run_with_risc0_cutoff`]
+#[derive(Debug, PartialEq)]
+pub struct NativeL1BlockResult {
+    pub l2_state_root: [u8; 32],
+    pub lcp_state_root: [u8; 32],
+    pub last_l2_height: u64,
+    pub last_sequencer_commitment_index: u32,
+}
+
 /// MockDA MockZkvm native context circuit runner implementation
 pub struct NativeCircuitRunner {
     circuit: LightClientProofCircuit<ProverStorage, MockDaSpec, MockZkvm>,
@@ -381,7 +415,7 @@ impl NativeCircuitRunner {
     #[allow(clippy::too_many_arguments)]
     pub fn run(
         &self,
-        mut input: LightClientCircuitInput<MockDaSpec>,
+        input: LightClientCircuitInput<MockDaSpec>,
         l2_genesis_state_root: [u8; 32],
         initial_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
         batch_prover_da_pub_key: &[u8],
@@ -390,14 +424,47 @@ impl NativeCircuitRunner {
              SECURITY_COUNCIL_MEMBER_COUNT],
         network: Network,
     ) -> LightClientCircuitInput<MockDaSpec> {
+        self.run_with_risc0_cutoff(
+            input,
+            l2_genesis_state_root,
+            initial_batch_proof_method_ids,
+            batch_prover_da_pub_key,
+            sequencer_da_pub_key,
+            method_id_upgrade_authority,
+            network,
+            risc0_cutoff(network),
+        )
+        .0
+    }
+
+    /// Run the circuit like [`Self::run`] with the given RISC0 cutoff, and also return the
+    /// state after the L1 block. Like the input builder, an input without a previous proof
+    /// continues from P0 if there is a cutoff.
+    #[allow(clippy::too_many_arguments)]
+    pub fn run_with_risc0_cutoff(
+        &self,
+        mut input: LightClientCircuitInput<MockDaSpec>,
+        l2_genesis_state_root: [u8; 32],
+        initial_batch_proof_method_ids: Vec<(u64, [u32; 8])>,
+        batch_prover_da_pub_key: &[u8],
+        sequencer_da_pub_key: &[u8],
+        method_id_upgrade_authority: &[[u8; SECURITY_COUNCIL_COMPRESSED_PUBKEY_SIZE];
+             SECURITY_COUNCIL_MEMBER_COUNT],
+        network: Network,
+        risc0_cutoff: Option<Risc0Cutoff>,
+    ) -> (LightClientCircuitInput<MockDaSpec>, NativeL1BlockResult) {
         let prover_storage = self
             .prover_storage_manager
             .create_storage_for_next_l2_height();
 
-        let prev_lcp_output = input.previous_light_client_proof.clone().map(|proof| {
-            let journal = MockZkvm::extract_raw_output(&proof).unwrap();
-            MockZkvm::deserialize_output(&journal).unwrap()
-        });
+        let prev_lcp_output = match &input.previous_light_client_proof {
+            Some(proof) => {
+                let journal = MockZkvm::extract_raw_output(proof).unwrap();
+                Some(MockZkvm::deserialize_output(&journal).unwrap())
+            }
+            None => risc0_cutoff
+                .map(|p0| p0.light_client_proof_output(input.light_client_proof_method_id)),
+        };
 
         let da_verifier = MockDaVerifier {};
 
@@ -428,7 +495,15 @@ impl NativeCircuitRunner {
 
         input.witness = res.witness;
 
-        input
+        (
+            input,
+            NativeL1BlockResult {
+                l2_state_root: res.l2_state_root,
+                lcp_state_root: res.lcp_state_root,
+                last_l2_height: res.last_l2_height,
+                last_sequencer_commitment_index: res.last_sequencer_commitment_index,
+            },
+        )
     }
 
     /// Used for a single test case

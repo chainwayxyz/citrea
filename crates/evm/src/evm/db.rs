@@ -2,7 +2,7 @@ use core::error::Error;
 #[cfg(feature = "native")]
 use std::collections::HashMap;
 
-use alloy_primitives::{keccak256, Address, B256, U256};
+use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
 use revm::context::DBErrorMarker;
 use revm::state::{AccountInfo as ReVmAccountInfo, Bytecode};
 use revm::Database;
@@ -16,6 +16,7 @@ use crate::Evm;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum DBError {
     CodeHashMismatch,
+    MalformedCode,
     UnknownCodeHash,
 }
 
@@ -28,11 +29,46 @@ impl std::fmt::Display for DBError {
             Self::CodeHashMismatch => {
                 write!(f, "Code does not match provided hash")
             }
+            Self::MalformedCode => {
+                write!(f, "Stored code is malformed")
+            }
             Self::UnknownCodeHash => {
                 write!(f, "Code hash is unknown")
             }
         }
     }
+}
+
+/// Extracts the bytes that `code_hash` is supposed to commit to, without trusting
+/// any of the value's derived fields.
+///
+/// Returns `None` when the value is structurally malformed
+fn committed_bytes(code: &Bytecode) -> Option<Bytes> {
+    match code {
+        Bytecode::LegacyAnalyzed(analyzed) => {
+            let padded = analyzed.bytecode();
+            let original_len = analyzed.original_len();
+            (original_len <= padded.len()).then(|| padded.slice(..original_len))
+        }
+        Bytecode::Eof(eof) => Some(eof.raw().clone()),
+        Bytecode::Eip7702(eip7702) => Some(eip7702.raw().clone()),
+    }
+}
+
+/// Checks that `code` is exactly what `code_hash` commits to, including every field revm
+/// derives from the code bytes.
+fn verify_code(code_hash: B256, code: &Bytecode) -> Result<(), DBError> {
+    let committed = committed_bytes(code).ok_or(DBError::MalformedCode)?;
+    if keccak256(&committed) != code_hash {
+        return Err(DBError::CodeHashMismatch);
+    }
+
+    let canonical = Bytecode::new_raw_checked(committed).map_err(|_| DBError::MalformedCode)?;
+    if canonical != *code {
+        return Err(DBError::MalformedCode);
+    }
+
+    Ok(())
 }
 
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
@@ -90,28 +126,17 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
     }
 
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        // TODO move to new_raw_with_hash for better performance
-
-        if let Some(code) = self.evm.offchain_code.get_with_verification_on_no_cache(
-            &code_hash,
-            |val| {
-                // if code is read as None,
-                // we don't have code for the given code_hash
-                // return true in that case so we return None from get_with_verification_on_no_cache
-                val.as_ref().map_or(Ok(()), |code| {
-                    if *code_hash == keccak256(code.original_byte_slice()) {
-                        Ok(())
-                    } else {
-                        Err(DBError::CodeHashMismatch)
-                    }
-                })
-            },
-            &mut self.working_set.offchain_state(),
-        )? {
-            Ok(code)
-        } else {
-            Err(DBError::UnknownCodeHash)
-        }
+        self.evm
+            .offchain_code
+            .get_with_verification_on_no_cache(
+                &code_hash,
+                |val| {
+                    val.as_ref()
+                        .map_or(Ok(()), |code| verify_code(code_hash, code))
+                },
+                &mut self.working_set.offchain_state(),
+            )?
+            .ok_or(DBError::UnknownCodeHash)
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {

@@ -28,6 +28,7 @@ sov-mock-da = { path = "../sovereign-sdk/adapters/mock-da", default-features = f
 [features]
 native = [
   "sov-modules-api/native",
+  "sov-mock-da/native",
   "sov-rollup-interface/native",
 
   "dep:sov-db",

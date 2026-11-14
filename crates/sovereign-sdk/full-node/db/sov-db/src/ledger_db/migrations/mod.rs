@@ -14,6 +14,9 @@ use crate::rocks_db_config::RocksdbConfig;
 /// Utilities for ledger db migrations
 pub mod utils;
 
+/// Discard legacy proving-session metadata before using the SP1 session format.
+pub mod drop_legacy_proving_sessions;
+
 /// Alias for migration name type
 pub type MigrationName = String;
 /// Alias for migration version type

@@ -45,6 +45,10 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
             return Err(ShortHeaderProofVerificationError::InvalidHeaderHash);
         }
 
+        if !self.coinbase_tx.is_coinbase() {
+            return Err(ShortHeaderProofVerificationError::InvalidCoinbaseTransaction);
+        }
+
         // Then check inclusion of coinbase tx to the header
         // by calculating txid of coinbase tx
         // and comparing self.header.header.merkle_root with reached merkle root
@@ -59,8 +63,12 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
             return Err(ShortHeaderProofVerificationError::InvalidCoinbaseMerkleProof);
         }
 
+        // `header.tx_count` is outside the 80-byte header and is not authenticated.
+        // Proof length is bound: it must reconstruct `header.merkle_root()` above.
+        let coinbase_txid_merkle_proof_height = self.coinbase_tx_txid_merkle_proof.len();
+
         // If block has only coinbase tx claimed tx commitment should equal to [0u8; 32]
-        if self.header.tx_count == 1 && self.header.txs_commitment != [0u8; 32] {
+        if coinbase_txid_merkle_proof_height == 0 && self.header.txs_commitment != [0u8; 32] {
             return Err(ShortHeaderProofVerificationError::WrongTxCommitment {
                 expected: [0u8; 32],
                 actual: self.header.txs_commitment,
@@ -81,7 +89,7 @@ impl VerifiableShortHeaderProof for BitcoinHeaderShortProof {
             None => {
                 // If non-segwit block, claimed tx commitment should equal to
                 // header.merkle_root if there are more than one tx
-                if self.header.tx_count > 1
+                if coinbase_txid_merkle_proof_height > 0
                     && self.header.merkle_root()
                         != Into::<[u8; 32]>::into(self.header.txs_commitment())
                 {
@@ -233,6 +241,23 @@ mod test {
     }
 
     #[test]
+    fn test_short_proof_rejects_non_coinbase_tx() {
+        let proof = get_proof();
+
+        let mut proof = proof.clone();
+        let mut tx = proof.coinbase_tx.deref().clone();
+        tx.input[0].previous_output.vout = 0;
+        assert!(!tx.is_coinbase());
+
+        proof.coinbase_tx = tx.into();
+
+        assert_eq!(
+            proof.verify().unwrap_err(),
+            ShortHeaderProofVerificationError::InvalidCoinbaseTransaction
+        );
+    }
+
+    #[test]
     fn test_incorrect_short_proofs() {
         let proof = get_proof();
 
@@ -369,6 +394,63 @@ mod test {
                 ShortHeaderProofVerificationError::WrongTxCommitment {
                     expected: original_merkle_root.to_byte_array(),
                     actual: [0; 32]
+                }
+            )
+        }
+
+        // Sibling of the tx_count == 0 skip: claim coinbase-only (tx_count = 1,
+        // txs_commitment = [0; 32]) on a real multi-tx non-segwit block.
+        // Proof height is still > 0, so the commitment must be the header merkle root.
+        {
+            let block = hex::decode("03000000855d154359b794c6ba2c5586cf6278eee5bd658faa954200000000000000000035e95b187fb0d5175f681c2a1c499c3c91a0781c91679545a1fcabba2cd7cd801b04bd5515081518aa8afeaf0201000000010000000000000000000000000000000000000000000000000000000000000000ffffffff25035b9d05384d2f040f04bd550894251c009a0500000f5b4254434368696e612e636f6d5d20000000000100f90295000000001976a9142c30a6aaac6d96687291475d7d52f4b469f665a688ac0000000001000000018651ed89909def949ee3e05631bb332f339f4c667b0af7e2d94e7940a4568a21000000006a473044022059c947c745d94d1019990f39b2c938c9ce3e79fe9a650cff01589ec3b5ed2c2c02206dcff5e15ae6aa9c7d44308f16963dd5ad1dd3229e923c9de3ae1c14f6f91a02012102163e80de410646145142636833d8a92de4bb5c99e49bd52be5346fb1030628d4ffffffff0250ac6002000000001976a9145ca26d65ee83f441ef98b624763a305d50eb36cf88aca0860100000000001976a914838eb1034b719f9c47ab853aee63d505e4176a8388ac00000000").unwrap();
+            let block: bitcoin::Block = bitcoin::consensus::deserialize(block.as_slice()).unwrap();
+
+            assert_eq!(2, block.txdata.len());
+
+            let original_merkle_root = block.header.merkle_root;
+            let block = BitcoinBlock {
+                header: HeaderWrapper::new(
+                    block.header,
+                    1, // forged: claim coinbase-only
+                    367963,
+                    [0; 32],
+                ),
+                txdata: block.txdata.into_iter().map(Into::into).collect(),
+            };
+
+            let proof = BitcoinService::block_to_short_header_proof(block);
+            assert_eq!(1, proof.header.tx_count);
+            assert!(!proof.coinbase_tx_txid_merkle_proof.is_empty());
+
+            assert_eq!(
+                proof.verify().unwrap_err(),
+                ShortHeaderProofVerificationError::WrongTxCommitment {
+                    expected: original_merkle_root.to_byte_array(),
+                    actual: [0; 32]
+                }
+            )
+        }
+
+        // tx_count == 0 on a non-segwit coinbase-only block with a forged commitment.
+        // Proof height is 0, so the commitment must be [0; 32] regardless of claimed tx_count.
+        {
+            let block = hex::decode("030000008f6bf399c264ffb224b370a895774da700aee298ee64c30800000000000000005c759d40b6682c185028ae9b352ab1a7039828881c550cee0476d8077beb7b36c796bd55150815181470b5290101000000010000000000000000000000000000000000000000000000000000000000000000ffffffff64039e9d05e4b883e5bda9e7a59ee4bb99e9b1bcfabe6d6de1f60d022c2ad500bf897d07d85cef56c7e4323f24e89cd19bdfda0e4325ec6a10000000f09f909f4d696e65642062792067756f68756100000000000000000000000000000000000000000000d51e00000100f90295000000001976a914c825a1ecf2a6830c4401620c3a16f1995057c2ab88ac896bb334").unwrap();
+            let block: bitcoin::Block = bitcoin::consensus::deserialize(block.as_slice()).unwrap();
+
+            assert_eq!(1, block.txdata.len());
+
+            let block = BitcoinBlock {
+                header: HeaderWrapper::new(block.header, 0, 368030, [0xab; 32]),
+                txdata: block.txdata.into_iter().map(Into::into).collect(),
+            };
+
+            let proof = BitcoinService::block_to_short_header_proof(block);
+
+            assert_eq!(
+                proof.verify().unwrap_err(),
+                ShortHeaderProofVerificationError::WrongTxCommitment {
+                    expected: [0; 32],
+                    actual: [0xab; 32]
                 }
             )
         }

@@ -3,7 +3,7 @@ use citrea::NetworkArg;
 use citrea_common::{
     from_toml_path, BatchProverConfig, FromEnv, LightClientProverConfig, NodeType, SequencerConfig,
 };
-use clap::{command, Parser};
+use clap::Parser;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub(crate) enum SupportedDaLayer {
@@ -23,10 +23,6 @@ pub(crate) struct Args {
     /// Run the development chain
     #[arg(long, default_value_t)]
     pub(crate) dev: bool,
-
-    /// Run the regtest chain
-    #[arg(long, default_value_t, conflicts_with = "dev")]
-    pub(crate) dev_all_forks: bool,
 
     /// Path to the genesis configuration.
     /// Defines the genesis of module states like evm.

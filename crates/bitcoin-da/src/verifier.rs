@@ -2,11 +2,11 @@
 
 use crypto_bigint::{Encoding, U256};
 use itertools::Itertools;
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, LatestDaState};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier, DataOnDa, LatestDaState};
 use sov_rollup_interface::Network;
 
-use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
-use crate::helpers::{calculate_double_sha256, calculate_txid, calculate_wtxid, merkle_tree};
+use crate::helpers::parsers::{parse_relevant_witness, ParsedTransaction, VerifyParsed};
+use crate::helpers::{calculate_double_sha256, calculate_txid, merkle_tree};
 use crate::network_constants::{
     INITIAL_MAINNET_STATE, INITIAL_SIGNET_STATE, INITIAL_TESTNET4_STATE, MAINNET_CONSTANTS,
     REGTEST_CONSTANTS, SIGNET_CONSTANTS, TESTNET4_CONSTANTS,
@@ -43,6 +43,8 @@ pub struct BitcoinVerifier {
 pub enum ValidationError {
     /// The block is invalid.
     InvalidBlock,
+    /// The supplied coinbase transaction is not a valid Bitcoin coinbase transaction.
+    InvalidCoinbaseTransaction,
     /// The segwit commitment in the coinbase transaction is invalid.
     InvalidSegWitCommitment,
     /// The relevant transaction is not present in the completeness proof.
@@ -65,8 +67,12 @@ pub enum ValidationError {
     InvalidTargetHash,
     /// The timestamp in the block header is invalid.
     InvalidTimestamp,
-    /// The block header's inclusion tx count does not match the number of transactions in the inclusion proof.
-    HeaderInclusionTxCountMismatch,
+    /// The inclusion proof's witness transaction list has an invalid count.
+    InvalidWitnessTxidCount,
+    /// The inclusion proof's coinbase witness transaction id is not zero.
+    InvalidCoinbaseWitnessTxid,
+    /// The witness txid Merkle tree height does not match the coinbase txid proof height.
+    WitnessTxidMerkleTreeDepthMismatch,
     /// Failed to deserialize complete chunks.
     FailedToDeserializeCompleteChunks,
     /// Failed to deserialize batch proof method id body
@@ -96,8 +102,26 @@ impl DaVerifier for BitcoinVerifier {
         inclusion_proof: <Self::Spec as DaSpec>::InclusionMultiProof,
         completeness_proof: <Self::Spec as DaSpec>::CompletenessProof,
     ) -> Result<Vec<<Self::Spec as DaSpec>::BlobTransaction>, Self::Error> {
-        if block_header.tx_count as usize != inclusion_proof.wtxids.len() {
-            return Err(ValidationError::HeaderInclusionTxCountMismatch);
+        let wtxids = inclusion_proof.wtxids;
+        if wtxids.is_empty() {
+            return Err(ValidationError::InvalidWitnessTxidCount);
+        }
+        if wtxids[0] != [0; 32] {
+            return Err(ValidationError::InvalidCoinbaseWitnessTxid);
+        }
+
+        let coinbase_txid_merkle_proof_height = inclusion_proof.coinbase_merkle_proof.len();
+        let witness_tree = merkle_tree::BitcoinMerkleTree::new(wtxids);
+
+        // The coinbase txid proof length is authenticated by the header's txid root.
+        // The witness txid list must use the same tree height, otherwise internal
+        // witness Merkle nodes can be reinterpreted as fake leaves.
+        if witness_tree.depth() != coinbase_txid_merkle_proof_height {
+            return Err(ValidationError::WitnessTxidMerkleTreeDepthMismatch);
+        }
+
+        if !inclusion_proof.coinbase_tx.is_coinbase() {
+            return Err(ValidationError::InvalidCoinbaseTransaction);
         }
 
         let prefix = self.reveal_tx_prefix.as_slice();
@@ -105,20 +129,30 @@ impl DaVerifier for BitcoinVerifier {
         // Optimistically assume all txs in the completeness proof are verifiable
         let mut blobs = Vec::with_capacity(completeness_proof.len());
 
-        let relevant_wtxid_iter = inclusion_proof
-            .wtxids
+        let relevant_wtxid_iter = witness_tree
+            .leaves()
             .iter()
             .filter(|wtxid| wtxid.starts_with(prefix));
         for (wtxid, tx) in relevant_wtxid_iter.zip_eq(&completeness_proof) {
             // ensure completeness proof tx matches the inclusion tx
-            if &calculate_wtxid(tx) != wtxid {
+            if &tx.wtxid() != wtxid {
                 return Err(ValidationError::RelevantTxNotInProof);
             }
 
+            let Some(witness) = tx.reveal_witness() else {
+                continue;
+            };
+
             // it must be parsed correctly
-            if let Ok(parsed_tx) = parse_relevant_transaction(tx) {
+            if let Ok(parsed_tx) = parse_relevant_witness(&witness) {
                 match parsed_tx {
                     ParsedTransaction::Complete(complete) => {
+                        if complete.body.first() != Some(&DataOnDa::COMPLETE_TAG) {
+                            continue;
+                        }
+                        if !DataOnDa::validate_data_len(&complete.body) {
+                            continue;
+                        }
                         if let Some(hash) = complete.get_sig_verified_hash() {
                             // complete.body is compressed, but we'll leave the compression to
                             // circuit logic
@@ -132,6 +166,9 @@ impl DaVerifier for BitcoinVerifier {
                         }
                     }
                     ParsedTransaction::Aggregate(aggregate) => {
+                        if aggregate.body.first() != Some(&DataOnDa::AGGREGATE_TAG) {
+                            continue;
+                        }
                         if let Some(hash) = aggregate.get_sig_verified_hash() {
                             blobs.push(BlobWithSender::new(
                                 aggregate.body,
@@ -142,6 +179,12 @@ impl DaVerifier for BitcoinVerifier {
                         }
                     }
                     ParsedTransaction::Chunk(chunk) => {
+                        if chunk.body.first() != Some(&DataOnDa::CHUNK_TAG) {
+                            continue;
+                        }
+                        if !DataOnDa::validate_data_len(&chunk.body) {
+                            continue;
+                        }
                         blobs.push(BlobWithSender::new(
                             chunk.body,
                             // chunk sender and hash irrelevant
@@ -152,6 +195,9 @@ impl DaVerifier for BitcoinVerifier {
                     }
                     // The verification of BatchProofMethodId security council signatures are done in the circuit
                     ParsedTransaction::BatchProofMethodId(method_id) => {
+                        if method_id.body.first() != Some(&DataOnDa::BATCH_PROOF_METHOD_ID_TAG) {
+                            continue;
+                        }
                         // Pubkey here is given as 0 because the security council pub keys are inside the body
                         let public_key = [0u8; 32].to_vec();
                         let hash = method_id.hash();
@@ -167,6 +213,9 @@ impl DaVerifier for BitcoinVerifier {
                         ))
                     }
                     ParsedTransaction::SequencerCommitment(seq_comm) => {
+                        if seq_comm.body.first() != Some(&DataOnDa::SEQUENCER_COMMITMENT_TAG) {
+                            continue;
+                        }
                         if let Some(hash) = seq_comm.get_sig_verified_hash() {
                             blobs.push(BlobWithSender::new(
                                 seq_comm.body,
@@ -181,7 +230,7 @@ impl DaVerifier for BitcoinVerifier {
         }
 
         // If there is only coinbase tx in a block, then the witness root should be 0
-        if block_header.tx_count == 1 && block_header.txs_commitment != [0; 32] {
+        if coinbase_txid_merkle_proof_height == 0 && block_header.txs_commitment != [0; 32] {
             return Err(ValidationError::InvalidSegWitCommitment);
         }
 
@@ -203,7 +252,7 @@ impl DaVerifier for BitcoinVerifier {
             // If commitment does not exist
             None => {
                 // If there are more than one txs in a non segwit block, then the witness root should be the header merkle root
-                if block_header.tx_count > 1
+                if coinbase_txid_merkle_proof_height > 0
                     && block_header.merkle_root() != block_header.txs_commitment
                 {
                     return Err(ValidationError::InvalidSegWitCommitment);
@@ -215,8 +264,7 @@ impl DaVerifier for BitcoinVerifier {
                 }
             }
             Some(commitment_idx) => {
-                let merkle_root =
-                    merkle_tree::BitcoinMerkleTree::new(inclusion_proof.wtxids).root();
+                let merkle_root = witness_tree.root();
 
                 let input_witness_value = coinbase_tx.input[0]
                     .witness
@@ -286,7 +334,7 @@ impl DaVerifier for BitcoinVerifier {
                 latest_da_state.unwrap_or(&INITIAL_SIGNET_STATE),
                 block_header,
             ),
-            Network::Nightly | Network::TestNetworkWithForks => {
+            Network::Nightly => {
                 // For regtest, if this is the first light client proof, we always
                 // consider the block valid with respect to its parent block, so
                 // it can start from anywhere.
@@ -382,15 +430,22 @@ impl BitcoinVerifier {
         let latest_block_time =
             latest_da_state.prev_11_timestamps[latest_da_state.block_height as usize % 11];
 
+        // BIP94: the first block of a Testnet4 epoch may go back at most
+        // ten minutes relative to its predecessor, even when MTP allows more.
+        if epoch_block == 0 && block_header.time().secs() < i64::from(latest_block_time) - 600 {
+            return Err(ValidationError::InvalidTimestamp);
+        }
+
         // If more than 20 minutes passed since latest block and this is not epoch block 0, reset target
-        let (target, expected_bits) =
-            if epoch_block != 0 && block_header.time().secs() as u32 > latest_block_time + 1200 {
-                let target = network_constants.max_target.to_be_bytes();
-                (target, network_constants.max_bits)
-            } else {
-                let target = bits_to_target(latest_da_state.current_target_bits);
-                (target, latest_da_state.current_target_bits)
-            };
+        let (target, expected_bits) = if epoch_block != 0
+            && block_header.time().secs() > i64::from(latest_block_time) + 1200
+        {
+            let target = network_constants.max_target.to_be_bytes();
+            (target, network_constants.max_bits)
+        } else {
+            let target = bits_to_target(latest_da_state.current_target_bits);
+            (target, latest_da_state.current_target_bits)
+        };
         let work_add = target_to_work(&target);
 
         // Verify common header chain rules
@@ -562,7 +617,7 @@ impl BitcoinVerifier {
             return Err(ValidationError::InvalidBlockBits);
         }
         // Check 5: proof of work
-        if !verify_target_hash(block_header.hash().into(), target) {
+        if target == [0; 32] || !verify_target_hash(block_header.hash().into(), target) {
             return Err(ValidationError::InvalidTargetHash);
         }
         // Check 6: valid timestamp
@@ -615,7 +670,11 @@ fn bits_to_target(bits: u32) -> [u8; 32] {
 
     // Mantissa is signed in Bitcoin core, if the sign bit is set, the target is set to 0.
     // https://github.com/bitcoin/bitcoin/blob/ee42d59d4de970769ebabf77b89ff4269498f61e/src/arith_uint256.cpp#L175
-    if mantissa > 0x7F_FFFF {
+    if mantissa > 0x7F_FFFF
+        || size > 34
+        || (mantissa > 0xff && size > 33)
+        || (mantissa > 0xffff && size > 32)
+    {
         return [0; 32];
     }
 
@@ -640,10 +699,10 @@ pub(crate) const fn target_to_bits(target: &[u8; 32]) -> u32 {
     let target_bits = target_u256.bits();
     let size = (263 - target_bits) / 8;
     let mut compact_target = [0u8; 4];
-    compact_target[0] = 33 - size as u8;
-    compact_target[1] = target[size - 1_usize];
-    compact_target[2] = target[size];
-    compact_target[3] = target[size + 1_usize];
+    compact_target[0] = if target_bits == 0 { 0 } else { 33 - size as u8 };
+    compact_target[1] = if size == 0 { 0 } else { target[size - 1] };
+    compact_target[2] = if size < 32 { target[size] } else { 0 };
+    compact_target[3] = if size < 31 { target[size + 1] } else { 0 };
     u32::from_be_bytes(compact_target)
 }
 
@@ -653,15 +712,10 @@ pub(crate) const fn target_to_bits(target: &[u8; 32]) -> u32 {
 /// This calculation uses the mathematical identity:
 /// 2**256 / (x + 1) == ~x / (x + 1) + 1
 fn target_to_work(target: &[u8; 32]) -> U256 {
-    // We should never have a target/work of zero so this doesn't matter
-    // that much but we define the inverse of 0 as max.
+    // Bitcoin Core's GetBlockProof assigns no work to an invalid zero target.
     let target = U256::from_be_slice(target);
     if target == U256::ZERO {
-        return U256::MAX;
-    }
-    // We define the inverse of 1 as max.
-    if target == U256::ONE {
-        return U256::MAX;
+        return U256::ZERO;
     }
     // We define the inverse of max as 1.
     if target == U256::MAX {
@@ -683,7 +737,7 @@ fn calculate_new_difficulty(
     expected_epoch_timespan: u32,
 ) -> [u8; 32] {
     // Step 1: Calculate the actual timespan of the epoch
-    let mut actual_timespan = last_timestamp - epoch_start_time;
+    let mut actual_timespan = last_timestamp.saturating_sub(epoch_start_time);
     if actual_timespan < expected_epoch_timespan / 4 {
         actual_timespan = expected_epoch_timespan / 4;
     } else if actual_timespan > expected_epoch_timespan * 4 {
@@ -708,16 +762,24 @@ mod tests {
     use std::io::{BufRead, BufReader};
     use std::ops::Deref;
 
+    use bitcoin::absolute::LockTime;
+    use bitcoin::block::{Header, Version as HeaderVersion};
     use bitcoin::hashes::Hash;
-    use bitcoin::CompactTarget;
+    use bitcoin::transaction::Version as TxVersion;
+    use bitcoin::{
+        Amount, BlockHash, CompactTarget, OutPoint, ScriptBuf, Sequence, Transaction, TxIn,
+        TxMerkleNode, TxOut, Txid, Witness,
+    };
     use borsh::BorshDeserialize;
-    use crypto_bigint::U256;
+    use crypto_bigint::{Encoding, U256};
     use hex;
     use sov_rollup_interface::da::{DaVerifier, LatestDaState};
     use sov_rollup_interface::Network;
 
     use super::{BitcoinVerifier, ValidationError};
     use crate::spec::header::{BitcoinHeaderWrapper, HeaderWrapper};
+    use crate::spec::proof::InclusionMultiProof;
+    use crate::spec::transaction::TransactionWrapper;
     use crate::spec::RollupParams;
     use crate::verifier::{bits_to_target, target_to_work};
 
@@ -726,6 +788,196 @@ mod tests {
             reveal_tx_prefix: vec![],
             network: Network::Nightly,
         })
+    }
+
+    #[test]
+    fn test_compact_target_boundaries() {
+        // Core SetCompact/GetCompact: small values, sign bit, overflow limits.
+        for (bits, value) in [
+            (0, 0u64),
+            (0x01010000, 1),
+            (0x02008000, 128),
+            (0x03008000, 32768),
+            (0x03010000, 65536),
+        ] {
+            let target = U256::from(value).to_be_bytes();
+            assert_eq!(bits_to_target(bits), target);
+            assert_eq!(super::target_to_bits(&target), bits);
+        }
+        for bits in [0x1d80ffff, 0x23000001, 0x22000100, 0x21010000, 0xff123456] {
+            assert_eq!(bits_to_target(bits), [0; 32]);
+        }
+        assert_eq!(
+            bits_to_target(0x220000ff),
+            (U256::from(255u64) << 248).to_be_bytes()
+        );
+        assert_eq!(
+            bits_to_target(0x2100ffff),
+            (U256::from(65535u64) << 240).to_be_bytes()
+        );
+    }
+
+    #[test]
+    fn test_retarget_signed_time_and_clamps() {
+        let bits = 0x1c123456;
+        let expected = U256::from_be_bytes(bits_to_target(bits))
+            .wrapping_div(&U256::from(4u64))
+            .to_be_bytes();
+        for (first, last) in [(2_000_000, 1_000_000), (u32::MAX, 0), (1, 1)] {
+            assert_eq!(
+                super::calculate_new_difficulty(
+                    first,
+                    last,
+                    bits,
+                    super::MAINNET_CONSTANTS.max_target,
+                    super::EXPECTED_EPOCH_TIMESPAN
+                ),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn test_testnet4_epoch_timewarp_boundary() {
+        let mut state = LatestDaState {
+            block_hash: [0; 32],
+            block_height: 2015,
+            total_work: [0; 32],
+            current_target_bits: 0x1d00ffff,
+            epoch_start_time: 0,
+            prev_11_timestamps: [1; 11],
+        };
+        state.prev_11_timestamps[2015 % 11] = 10_000;
+        for (time, rejected) in [(9399, true), (9400, false), (9401, false)] {
+            let header = HeaderWrapper::new(
+                Header {
+                    version: HeaderVersion::ONE,
+                    prev_blockhash: BlockHash::all_zeros(),
+                    merkle_root: TxMerkleNode::all_zeros(),
+                    time,
+                    bits: CompactTarget::from_consensus(0x1d00ffff),
+                    nonce: 0,
+                },
+                1,
+                2016,
+                [0; 32],
+            );
+            let result = get_verifier().verify_header_chain_testnet4(&state, &header);
+            // Unmined headers fail PoW, but only the too-early one fails the epoch guard.
+            assert_eq!(result == Err(ValidationError::InvalidTimestamp), rejected);
+        }
+    }
+
+    #[test]
+    fn test_testnet4_min_difficulty_timestamp_overflow() {
+        let state = LatestDaState {
+            block_hash: [0; 32],
+            block_height: 2016,
+            total_work: [0; 32],
+            current_target_bits: 0x1c123456,
+            epoch_start_time: 0,
+            prev_11_timestamps: [u32::MAX - 600; 11],
+        };
+        let header = HeaderWrapper::new(
+            Header {
+                version: HeaderVersion::ONE,
+                prev_blockhash: BlockHash::all_zeros(),
+                merkle_root: TxMerkleNode::all_zeros(),
+                time: u32::MAX,
+                bits: CompactTarget::from_consensus(0x1d00ffff),
+                nonce: 0,
+            },
+            1,
+            2017,
+            [0; 32],
+        );
+        assert_eq!(
+            get_verifier().verify_header_chain_testnet4(&state, &header),
+            Err(ValidationError::InvalidBlockBits)
+        );
+    }
+
+    #[test]
+    fn test_verify_transactions_rejects_nonzero_coinbase_wtxid() {
+        let verifier = get_verifier();
+        let header = HeaderWrapper::new(
+            Header {
+                version: bitcoin::block::Version::from_consensus(0),
+                prev_blockhash: BlockHash::all_zeros(),
+                merkle_root: TxMerkleNode::all_zeros(),
+                time: 0,
+                bits: CompactTarget::from_consensus(0),
+                nonce: 0,
+            },
+            1,
+            1,
+            [0; 32],
+        );
+        let coinbase_tx = TransactionWrapper::from(Transaction {
+            version: TxVersion::ONE,
+            lock_time: LockTime::ZERO,
+            input: vec![TxIn {
+                previous_output: OutPoint::null(),
+                script_sig: ScriptBuf::new(),
+                sequence: Sequence::MAX,
+                witness: Witness::new(),
+            }],
+            output: vec![TxOut {
+                value: Amount::ZERO,
+                script_pubkey: ScriptBuf::new(),
+            }],
+        });
+        let inclusion_proof = InclusionMultiProof {
+            wtxids: vec![[1; 32]],
+            coinbase_tx,
+            coinbase_merkle_proof: vec![],
+        };
+
+        assert_eq!(
+            verifier.verify_transactions(&header, inclusion_proof, vec![]),
+            Err(ValidationError::InvalidCoinbaseWitnessTxid)
+        );
+    }
+
+    #[test]
+    fn test_verify_transactions_rejects_non_coinbase_tx() {
+        let verifier = get_verifier();
+
+        let fake_coinbase = Transaction {
+            version: TxVersion(1),
+            lock_time: LockTime::ZERO,
+            input: vec![TxIn {
+                previous_output: OutPoint {
+                    txid: Txid::from_byte_array([1u8; 32]),
+                    vout: 0,
+                },
+                script_sig: ScriptBuf::new(),
+                sequence: Sequence::MAX,
+                witness: Witness::new(),
+            }],
+            output: vec![],
+        };
+        assert!(!fake_coinbase.is_coinbase());
+
+        let header = Header {
+            version: HeaderVersion::from_consensus(0x20000000),
+            prev_blockhash: BlockHash::all_zeros(),
+            merkle_root: TxMerkleNode::from_byte_array([0; 32]),
+            time: 0,
+            bits: CompactTarget::from_consensus(0x207fffff),
+            nonce: 0,
+        };
+        let header = HeaderWrapper::new(header, 1, 1, [0; 32]);
+        let inclusion_proof = InclusionMultiProof {
+            wtxids: vec![[0; 32]],
+            coinbase_tx: fake_coinbase.into(),
+            coinbase_merkle_proof: vec![],
+        };
+
+        assert_eq!(
+            verifier.verify_transactions(&header, inclusion_proof, vec![]),
+            Err(ValidationError::InvalidCoinbaseTransaction)
+        );
     }
 
     #[test]
@@ -932,10 +1184,10 @@ mod tests {
     fn test_calculate_work() {
         let mut target: [u8; 32] = [0u8; 32];
         let work = target_to_work(&target);
-        assert_eq!(work, U256::MAX);
+        assert_eq!(work, U256::ZERO);
         target[31] = 1;
         let work = target_to_work(&target);
-        assert_eq!(work, U256::MAX);
+        assert_eq!(work, U256::ONE << 255);
         let target: [u8; 32] = [0xFF; 32];
         let work = target_to_work(&target);
         assert_eq!(work, U256::ONE);

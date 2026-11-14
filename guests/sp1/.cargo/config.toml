@@ -1,0 +1,6 @@
+# C dependencies of the guests (secp256k1-sys). SP1's Docker image has no RISC-V
+# GCC and SP1 forwards no environment into it, so this applies to both build modes.
+# Older cc crates don't recognize SP1's Rust target. Use Clang's RV64IM target.
+[env]
+CC_riscv64im_succinct_zkvm_elf = "clang"
+"CFLAGS_riscv64im-succinct-zkvm-elf" = "--target=riscv64-unknown-none-elf -march=rv64im -mabi=lp64"

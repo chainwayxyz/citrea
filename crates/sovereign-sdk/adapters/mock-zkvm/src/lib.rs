@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::zk::{
-    LocalProvingSessionInfo, Matches, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType,
+    Matches, Proof, ProofWithJob, ProvingSessionInfo, ReceiptType, Sp1ExecutionStats,
 };
 use tokio::sync::oneshot;
 use uuid::Uuid;
@@ -122,12 +122,10 @@ impl MockZkvm {
                 job_id: Uuid::now_v7(),
                 proof,
                 // mock proving info
-                info: ProvingSessionInfo::Local(LocalProvingSessionInfo {
-                    segments: 0,
-                    total_cycles: 0,
-                    user_cycles: 0,
-                    paging_cycles: 0,
-                    reserved_cycles: 0,
+                info: ProvingSessionInfo::LocalExecution(Sp1ExecutionStats {
+                    instruction_count: 0,
+                    syscall_count: 0,
+                    gas: 0,
                 }),
             })
             .unwrap();
@@ -182,8 +180,6 @@ impl sov_rollup_interface::zk::Zkvm for MockZkvm {
 
 #[async_trait]
 impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
-    type Guest = MockZkGuest;
-
     fn add_hint(&mut self, item: Vec<u8>) {
         let proof_info = ProofInfo {
             hint: item,
@@ -197,20 +193,15 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
     }
 
     fn add_assumption(&mut self, _receipt_buf: Vec<u8>) {
-        unimplemented!()
-    }
-
-    fn simulate_with_hints(&mut self) -> Self::Guest {
-        MockZkGuest {
-            input: RwLock::new(Cursor::new(vec![])),
-            output: RwLock::new(vec![]),
-        }
+        // Mock proofs carry their complete claim in the ordinary guest input;
+        // there is no separate native proof stream for this test adapter.
     }
 
     async fn run(
         &mut self,
         _job_id: Uuid,
         _elf: Vec<u8>,
+        _program: [u32; 8],
         _receipt_type: ReceiptType,
         _with_prove: bool,
     ) -> anyhow::Result<oneshot::Receiver<ProofWithJob>> {
@@ -302,15 +293,6 @@ impl sov_rollup_interface::zk::ZkvmGuest for MockZkGuest {
         let buf = borsh::to_vec(item).expect("Serialization to vec is infallible");
         // Mutate the `output` field using `borrow_mut`
         self.output.write().unwrap().extend_from_slice(&buf);
-    }
-
-    fn verify_with_assumptions(journal: &[u8], _code_commitment: &Self::CodeCommitment) {
-        // panics on unverifiable
-        let mock_journal = MockJournal::try_from_slice(journal).unwrap();
-        match mock_journal {
-            MockJournal::Verifiable(_) => {}
-            MockJournal::Unverifiable(_) => panic!("Assumption proof verification failed!"),
-        }
     }
 }
 

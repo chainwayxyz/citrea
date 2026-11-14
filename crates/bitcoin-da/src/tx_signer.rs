@@ -166,7 +166,7 @@ impl TxSigner {
         let all_txs: Vec<TxWithId> = commit_chunks
             .iter()
             .chain(reveal_chunks.iter())
-            .chain([&commit, &reveal.tx].into_iter())
+            .chain([&commit, &reveal.tx])
             .map(|tx| TxWithId {
                 id: tx.compute_txid(),
                 tx: tx.clone(),

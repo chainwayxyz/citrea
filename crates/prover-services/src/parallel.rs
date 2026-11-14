@@ -126,6 +126,7 @@ where
             input,
             assumptions,
             elf,
+            program,
         } = data;
 
         let mut vm = self.vm.clone();
@@ -137,7 +138,7 @@ where
 
         // start proof immediately in the background
         let proof_start_time = std::time::Instant::now();
-        let proof_rx = make_proof(vm, job_id, elf, self.proof_mode, receipt_type)
+        let proof_rx = make_proof(vm, job_id, elf, program, self.proof_mode, receipt_type)
             .await
             .inspect_err(|_| PARALLEL_PROVER_METRICS.ongoing_proving_jobs.decrement(1))
             .map_err(|e| anyhow!("Failed to start proving {e}"))?;
@@ -241,6 +242,7 @@ async fn make_proof<Vm>(
     mut vm: Vm,
     job_id: Uuid,
     elf: Vec<u8>,
+    program: [u32; 8],
     proof_mode: ProofGenMode,
     receipt_type: ReceiptType,
 ) -> Result<oneshot::Receiver<ProofWithJob>, anyhow::Error>
@@ -265,6 +267,8 @@ where
         }
     };
 
-    let rx = vm.run(job_id, elf, receipt_type, with_prove).await?;
+    let rx = vm
+        .run(job_id, elf, program, receipt_type, with_prove)
+        .await?;
     Ok(rx)
 }

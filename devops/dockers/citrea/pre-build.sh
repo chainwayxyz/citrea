@@ -11,7 +11,6 @@ NETWORK="$3"
 PLATFORM="$4"
 SCRIPT_DIR="$(temp=$( realpath "$0"  ) && dirname "$temp")"
 REPO="chainwayxyz/citrea"
-R0VM_URL="https://static.citrea.xyz/$NETWORK/resources/r0vm"
 DA_LAYER="${DA_LAYER:-bitcoin}"
 GENESIS_PATH="${GENESIS_PATH:-genesis}"
 
@@ -30,9 +29,6 @@ download_binary() {
 download_binary "citrea"
 download_binary "citrea-cli"
 
-## Copy r0vm binary
-wget -O r0vm "$R0VM_URL"
-
 ## Copy genesis folder
 FORMATTED_NETWORK="${NETWORK//-/}"
 cp -r "$SCRIPT_DIR"/../../../resources/genesis/"$FORMATTED_NETWORK" ./genesis
@@ -45,4 +41,4 @@ NETWORK=$NETWORK
 SERVICE_TYPE=$SERVICE
 EOF
 
-chmod +x entrypoint.sh r0vm
+chmod +x entrypoint.sh

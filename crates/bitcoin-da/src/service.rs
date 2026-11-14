@@ -43,7 +43,9 @@ use crate::helpers::backup::backup_txs_to_file;
 use crate::helpers::builders::body_builders::{create_inscription_transactions, DaTxs, RawTxData};
 use crate::helpers::builders::TxWithId;
 use crate::helpers::merkle_tree::BitcoinMerkleTree;
-use crate::helpers::parsers::{parse_relevant_transaction, ParsedTransaction, VerifyParsed};
+use crate::helpers::parsers::{
+    parse_relevant_transaction, parse_relevant_witness, ParsedTransaction, VerifyParsed,
+};
 use crate::helpers::{merkle_tree, TransactionKind};
 use crate::metrics::BITCOIN_DA_METRICS as BM;
 use crate::monitoring::{MonitoredTxKind, MonitoringConfig, MonitoringService, TxStatus};
@@ -53,7 +55,7 @@ use crate::spec::block::BitcoinBlock;
 use crate::spec::header::HeaderWrapper;
 use crate::spec::proof::InclusionMultiProof;
 use crate::spec::short_proof::BitcoinHeaderShortProof;
-use crate::spec::transaction::TransactionWrapper;
+use crate::spec::transaction::{RawTransaction, TransactionWrapper};
 use crate::spec::{BitcoinSpec, RollupParams};
 use crate::tx_signer::{SignedTxPair, TxSigner};
 use crate::utxo_manager::{UtxoContext, UtxoManager, UtxoSelectionMode};
@@ -71,7 +73,7 @@ pub fn network_to_bitcoin_network(network: &Network) -> bitcoin::Network {
         Network::Mainnet => bitcoin::Network::Bitcoin,
         Network::Testnet => bitcoin::Network::Testnet4,
         Network::Devnet => bitcoin::Network::Signet,
-        Network::Nightly | Network::TestNetworkWithForks => bitcoin::Network::Regtest,
+        Network::Nightly => bitcoin::Network::Regtest,
     }
 }
 
@@ -1107,7 +1109,7 @@ impl DaService for BitcoinService {
 
         // coinbase starts with 0, so we skip it unless the prefix is all 0's
         if prefix.iter().all(|&x| x == 0) {
-            completeness_proof.push(block.txdata[0].clone());
+            completeness_proof.push(RawTransaction::from(&block.txdata[0]));
         }
 
         block.txdata[1..].iter().for_each(|tx| {
@@ -1115,7 +1117,7 @@ impl DaService for BitcoinService {
 
             // if tx_hash starts with the given prefix, it is in the completeness proof
             if wtxid.starts_with(prefix) {
-                completeness_proof.push(tx.clone());
+                completeness_proof.push(RawTransaction::from(tx));
             }
 
             wtxids.push(wtxid);
@@ -1139,71 +1141,7 @@ impl DaService for BitcoinService {
         let inclusion_proof =
             InclusionMultiProof::new(wtxids, block.txdata[0].clone(), coinbase_proof);
 
-        let mut relevant_txs = vec![];
-        for tx in &completeness_proof {
-            let wtxid = tx.compute_wtxid();
-            if let Ok(tx) = parse_relevant_transaction(tx) {
-                match tx {
-                    ParsedTransaction::Complete(complete) => {
-                        if let Some(hash) = complete.get_sig_verified_hash() {
-                            // complete.body is compressed, but we'll leave the compression to
-                            // circuit logic
-                            let relevant_tx = BlobWithSender::new(
-                                complete.body,
-                                complete.public_key,
-                                hash,
-                                wtxid.to_byte_array(),
-                            );
-                            relevant_txs.push(relevant_tx);
-                        }
-                    }
-                    ParsedTransaction::Aggregate(aggregate) => {
-                        if let Some(hash) = aggregate.get_sig_verified_hash() {
-                            let relevant_tx = BlobWithSender::new(
-                                aggregate.body,
-                                aggregate.public_key,
-                                hash,
-                                wtxid.to_byte_array(),
-                            );
-                            relevant_txs.push(relevant_tx);
-                        }
-                    }
-                    ParsedTransaction::Chunk(chunk) => {
-                        let relevant_tx =
-                            BlobWithSender::new(chunk.body, vec![], [0; 32], wtxid.to_byte_array());
-                        relevant_txs.push(relevant_tx);
-                    }
-                    ParsedTransaction::BatchProofMethodId(method_id) => {
-                        // Pubkey here is given as 0 because the security council pub keys are inside the body
-                        let public_key = [0u8; 32].to_vec();
-                        let hash = method_id.hash();
-
-                        let relevant_tx = BlobWithSender::new(
-                            // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
-                            // The sender field here is not used because this transaction has a security council
-                            // consisting of 5 public keys, this data and signatures are embedded in the body
-                            method_id.body,
-                            public_key,
-                            hash,
-                            wtxid.to_byte_array(),
-                        );
-                        relevant_txs.push(relevant_tx);
-                    }
-                    ParsedTransaction::SequencerCommitment(seq_comm) => {
-                        if let Some(hash) = seq_comm.get_sig_verified_hash() {
-                            let relevant_tx = BlobWithSender::new(
-                                seq_comm.body,
-                                seq_comm.public_key,
-                                hash,
-                                wtxid.to_byte_array(),
-                            );
-
-                            relevant_txs.push(relevant_tx);
-                        }
-                    }
-                }
-            }
-        }
+        let relevant_txs = extract_relevant_blobs(&completeness_proof);
 
         (relevant_txs, inclusion_proof, completeness_proof)
     }
@@ -1395,8 +1333,95 @@ pub(crate) fn split_proof(zk_proof: Proof) -> Result<RawTxData> {
     }
 }
 
+/// Parses the blobs out of the prefix-matching transactions of a block.
+///
+/// Must filter exactly like [`BitcoinVerifier::verify_transactions`] does for the same
+/// completeness proof, so the native circuit run sees the blobs the guest will see. In
+/// particular anyone can mine a reveal to the prefix, so `Complete` and `Chunk` bodies go
+/// through [`DataOnDa::validate_data_len`] before the circuit hands them to borsh.
+pub(crate) fn extract_relevant_blobs(completeness_proof: &[RawTransaction]) -> Vec<BlobWithSender> {
+    let mut relevant_txs = vec![];
+    for tx in completeness_proof {
+        let wtxid = tx.wtxid();
+        let Some(witness) = tx.reveal_witness() else {
+            continue;
+        };
+        if let Ok(tx) = parse_relevant_witness(&witness) {
+            match tx {
+                ParsedTransaction::Complete(complete) => {
+                    if complete.body.first() != Some(&DataOnDa::COMPLETE_TAG) {
+                        continue;
+                    }
+                    if !DataOnDa::validate_data_len(&complete.body) {
+                        continue;
+                    }
+                    if let Some(hash) = complete.get_sig_verified_hash() {
+                        // complete.body is compressed, but we'll leave the compression to
+                        // circuit logic
+                        let relevant_tx =
+                            BlobWithSender::new(complete.body, complete.public_key, hash, wtxid);
+                        relevant_txs.push(relevant_tx);
+                    }
+                }
+                ParsedTransaction::Aggregate(aggregate) => {
+                    if aggregate.body.first() != Some(&DataOnDa::AGGREGATE_TAG) {
+                        continue;
+                    }
+                    if let Some(hash) = aggregate.get_sig_verified_hash() {
+                        let relevant_tx =
+                            BlobWithSender::new(aggregate.body, aggregate.public_key, hash, wtxid);
+                        relevant_txs.push(relevant_tx);
+                    }
+                }
+                ParsedTransaction::Chunk(chunk) => {
+                    if chunk.body.first() != Some(&DataOnDa::CHUNK_TAG) {
+                        continue;
+                    }
+                    if !DataOnDa::validate_data_len(&chunk.body) {
+                        continue;
+                    }
+                    let relevant_tx = BlobWithSender::new(chunk.body, vec![], [0; 32], wtxid);
+                    relevant_txs.push(relevant_tx);
+                }
+                ParsedTransaction::BatchProofMethodId(method_id) => {
+                    if method_id.body.first() != Some(&DataOnDa::BATCH_PROOF_METHOD_ID_TAG) {
+                        continue;
+                    }
+                    // Pubkey here is given as 0 because the security council pub keys are inside the body
+                    let public_key = [0u8; 32].to_vec();
+                    let hash = method_id.hash();
+
+                    let relevant_tx = BlobWithSender::new(
+                        // Body here is: borsh(DataOnDa::BatchProofMethodId(BatchProofMethodId { ... }))
+                        // The sender field here is not used because this transaction has a security council
+                        // consisting of 5 public keys, this data and signatures are embedded in the body
+                        method_id.body,
+                        public_key,
+                        hash,
+                        wtxid,
+                    );
+                    relevant_txs.push(relevant_tx);
+                }
+                ParsedTransaction::SequencerCommitment(seq_comm) => {
+                    if seq_comm.body.first() != Some(&DataOnDa::SEQUENCER_COMMITMENT_TAG) {
+                        continue;
+                    }
+                    if let Some(hash) = seq_comm.get_sig_verified_hash() {
+                        let relevant_tx =
+                            BlobWithSender::new(seq_comm.body, seq_comm.public_key, hash, wtxid);
+
+                        relevant_txs.push(relevant_tx);
+                    }
+                }
+            }
+        }
+    }
+
+    relevant_txs
+}
+
 /// Compute the witness merkle root of txs.
-fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8; 32] {
+pub(crate) fn calculate_witness_root(txdata: &[TransactionWrapper], tx_count: usize) -> [u8; 32] {
     // If there is only one transaction in the block, the witness root is all zeros
     // So the merkle root is all zeros as well
     if tx_count == 1 {
@@ -1441,5 +1466,240 @@ fn f64_to_u128(x: f64) -> Option<u128> {
         Some(x as u128)
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bitcoin::absolute::LockTime;
+    use bitcoin::block::{Header, Version as HeaderVersion};
+    use bitcoin::hashes::Hash;
+    use bitcoin::key::XOnlyPublicKey;
+    use bitcoin::opcodes::all::{OP_CHECKSIGVERIFY, OP_ENDIF, OP_IF, OP_NIP};
+    use bitcoin::opcodes::OP_FALSE;
+    use bitcoin::script::{self, PushBytesBuf};
+    use bitcoin::secp256k1::SecretKey;
+    use bitcoin::transaction::Version as TxVersion;
+    use bitcoin::{
+        Amount, BlockHash, CompactTarget, OutPoint, ScriptBuf, Sequence, Transaction, TxIn,
+        TxMerkleNode, TxOut, Txid, Witness,
+    };
+    use borsh::BorshDeserialize;
+    use sov_rollup_interface::da::{BlobReaderTrait, DaVerifier, DataOnDa};
+    use sov_rollup_interface::Network;
+
+    use super::extract_relevant_blobs;
+    use crate::helpers::builders::sign_blob_with_private_key;
+    use crate::helpers::calculate_double_sha256;
+    use crate::helpers::merkle_tree::BitcoinMerkleTree;
+    use crate::spec::header::HeaderWrapper;
+    use crate::spec::proof::InclusionMultiProof;
+    use crate::spec::transaction::RawTransaction;
+    use crate::spec::RollupParams;
+    use crate::verifier::{BitcoinVerifier, WITNESS_COMMITMENT_PREFIX};
+
+    const REVEAL_TX_PREFIX: &[u8] = &[1];
+
+    /// Reveal script header of a complete inscription.
+    const COMPLETE_KIND: u16 = 0;
+    /// Reveal script header of a chunk inscription.
+    const CHUNK_KIND: u16 = 2;
+
+    /// A `DataOnDa::Chunk` header declaring a ~2 GiB vector with none of the bytes present.
+    const POISONED_CHUNK_BODY: [u8; 5] = [DataOnDa::CHUNK_TAG, 0xff, 0xff, 0xff, 0x7f];
+    /// A `DataOnDa::Complete` header declaring a ~2 GiB vector with none of the bytes present.
+    const POISONED_COMPLETE_BODY: [u8; 5] = [DataOnDa::COMPLETE_TAG, 0xff, 0xff, 0xff, 0x7f];
+
+    /// Builds a reveal whose wtxid is mined to `REVEAL_TX_PREFIX`, carrying `envelope` as the
+    /// pushes of a `kind` inscription.
+    fn reveal_tx(kind: u16, envelope: &[&[u8]]) -> Transaction {
+        let mut builder = script::Builder::new()
+            .push_x_only_key(&XOnlyPublicKey::from_slice(&[1; 32]).unwrap())
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .push_slice(kind.to_le_bytes())
+            .push_opcode(OP_FALSE)
+            .push_opcode(OP_IF);
+        for item in envelope {
+            builder = builder.push_slice(PushBytesBuf::try_from(item.to_vec()).unwrap());
+        }
+        let reveal_script = builder
+            .push_opcode(OP_ENDIF)
+            .push_slice(16i64.to_le_bytes())
+            .push_opcode(OP_NIP)
+            .into_script();
+
+        let mut witness = Witness::new();
+        witness.push([0u8; 64]);
+        witness.push(reveal_script.as_bytes());
+        witness.push([0xc0; 33]);
+
+        let mut tx = Transaction {
+            version: TxVersion::TWO,
+            lock_time: LockTime::ZERO,
+            input: vec![TxIn {
+                // A distinct commit per inscription keeps the txids distinct
+                previous_output: OutPoint::new(
+                    Txid::from_byte_array(calculate_double_sha256(reveal_script.as_bytes())),
+                    0,
+                ),
+                script_sig: ScriptBuf::new(),
+                sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+                witness,
+            }],
+            output: vec![TxOut {
+                value: Amount::from_sat(546),
+                script_pubkey: ScriptBuf::new(),
+            }],
+        };
+        for lock_time in 0.. {
+            tx.lock_time = LockTime::from_consensus(lock_time);
+            if tx
+                .compute_wtxid()
+                .to_byte_array()
+                .starts_with(REVEAL_TX_PREFIX)
+            {
+                break;
+            }
+        }
+        tx
+    }
+
+    /// A chunk reveal. Chunks carry no signature, so anyone can publish one.
+    fn chunk_tx(body: &[u8]) -> Transaction {
+        reveal_tx(CHUNK_KIND, &[body])
+    }
+
+    /// A complete reveal with a valid signature over `body`.
+    fn complete_tx(body: &[u8]) -> Transaction {
+        let da_private_key = SecretKey::from_slice(&[0x42; 32]).unwrap();
+        let (signature, public_key) = sign_blob_with_private_key(body, &da_private_key);
+        reveal_tx(COMPLETE_KIND, &[&signature, &public_key, body])
+    }
+
+    fn wtxid(tx: &Transaction) -> [u8; 32] {
+        tx.compute_wtxid().to_byte_array()
+    }
+
+    fn completeness_proof(txs: &[Transaction]) -> Vec<RawTransaction> {
+        txs.iter().map(RawTransaction::from).collect()
+    }
+
+    /// Wraps `txs` in a segwit block and returns what the verifier needs to check them.
+    fn block_proofs(txs: &[Transaction]) -> (HeaderWrapper, InclusionMultiProof) {
+        let mut wtxids = vec![[0; 32]];
+        wtxids.extend(txs.iter().map(wtxid));
+        let witness_root = BitcoinMerkleTree::new(wtxids.clone()).root();
+
+        let witness_reserved_value = [0u8; 32];
+        let mut commitment = WITNESS_COMMITMENT_PREFIX.to_vec();
+        commitment.extend_from_slice(&calculate_double_sha256(
+            &[witness_root, witness_reserved_value].concat(),
+        ));
+        let mut coinbase_witness = Witness::new();
+        coinbase_witness.push(witness_reserved_value);
+        let coinbase = Transaction {
+            version: TxVersion::TWO,
+            lock_time: LockTime::ZERO,
+            input: vec![TxIn {
+                previous_output: OutPoint::null(),
+                script_sig: ScriptBuf::new(),
+                sequence: Sequence::MAX,
+                witness: coinbase_witness,
+            }],
+            output: vec![TxOut {
+                value: Amount::ZERO,
+                script_pubkey: ScriptBuf::from_bytes(commitment),
+            }],
+        };
+
+        let mut txids = vec![coinbase.compute_txid().to_byte_array()];
+        txids.extend(txs.iter().map(|tx| tx.compute_txid().to_byte_array()));
+        let txid_tree = BitcoinMerkleTree::new(txids);
+
+        let header = HeaderWrapper::new(
+            Header {
+                version: HeaderVersion::TWO,
+                prev_blockhash: BlockHash::all_zeros(),
+                merkle_root: TxMerkleNode::from_byte_array(txid_tree.root()),
+                time: 0,
+                bits: CompactTarget::from_consensus(0x207fffff),
+                nonce: 0,
+            },
+            txs.len() as u32 + 1,
+            1,
+            witness_root,
+        );
+        let inclusion_proof =
+            InclusionMultiProof::new(wtxids, coinbase.into(), txid_tree.get_idx_path(0));
+
+        (header, inclusion_proof)
+    }
+
+    /// Anyone can mine a reveal to the prefix, so a `Vec<u8>` body whose declared length is not
+    /// backed by bytes must be dropped before the native circuit run hands it to borsh, which
+    /// would allocate for the declared length first.
+    #[test]
+    fn extraction_drops_bodies_declaring_more_bytes_than_they_carry() {
+        let honest_complete =
+            complete_tx(&borsh::to_vec(&DataOnDa::Complete(vec![3; 40])).unwrap());
+        let poisoned_complete = complete_tx(&POISONED_COMPLETE_BODY);
+        let honest_chunk = chunk_tx(&borsh::to_vec(&DataOnDa::Chunk(vec![4; 40])).unwrap());
+        let poisoned_chunk = chunk_tx(&POISONED_CHUNK_BODY);
+
+        let blobs = extract_relevant_blobs(&completeness_proof(&[
+            honest_complete.clone(),
+            poisoned_complete,
+            honest_chunk.clone(),
+            poisoned_chunk,
+        ]));
+
+        let extracted: Vec<_> = blobs.iter().map(|blob| blob.wtxid()).collect();
+        assert_eq!(
+            extracted,
+            [wtxid(&honest_complete), wtxid(&honest_chunk)],
+            "only the well-formed complete and chunk must be extracted"
+        );
+        for blob in &blobs {
+            assert!(DataOnDa::validate_data_len(blob.full_data()));
+            assert!(DataOnDa::try_from_slice(blob.full_data()).is_ok());
+        }
+    }
+
+    /// The native circuit run must see exactly the blobs the guest gets out of
+    /// `verify_transactions` for the same completeness proof.
+    #[test]
+    fn extraction_matches_verifier() {
+        let txs = [
+            complete_tx(&borsh::to_vec(&DataOnDa::Complete(vec![3; 40])).unwrap()),
+            complete_tx(&POISONED_COMPLETE_BODY),
+            chunk_tx(&borsh::to_vec(&DataOnDa::Chunk(vec![4; 40])).unwrap()),
+            chunk_tx(&POISONED_CHUNK_BODY),
+            // Zero-length payloads are well-formed
+            complete_tx(&borsh::to_vec(&DataOnDa::Complete(vec![])).unwrap()),
+            chunk_tx(&borsh::to_vec(&DataOnDa::Chunk(vec![])).unwrap()),
+            // Too short to declare a length: nothing for borsh to allocate, so the verifier
+            // keeps it and leaves the rejection to the circuit
+            chunk_tx(&[DataOnDa::CHUNK_TAG, 0xff, 0xff]),
+            // Wrong tag for the transaction kind
+            chunk_tx(&borsh::to_vec(&DataOnDa::Complete(vec![5; 8])).unwrap()),
+        ];
+        let completeness_proof = completeness_proof(&txs);
+        let (header, inclusion_proof) = block_proofs(&txs);
+
+        let extracted = extract_relevant_blobs(&completeness_proof);
+
+        let verifier = BitcoinVerifier::new(RollupParams {
+            reveal_tx_prefix: REVEAL_TX_PREFIX.to_vec(),
+            network: Network::Nightly,
+        });
+        let verified = verifier
+            .verify_transactions(&header, inclusion_proof, completeness_proof)
+            .expect("block must verify");
+
+        assert_eq!(extracted, verified);
+        assert_eq!(
+            verified.iter().map(|blob| blob.wtxid()).collect::<Vec<_>>(),
+            [&txs[0], &txs[2], &txs[4], &txs[5], &txs[6]].map(wtxid)
+        );
     }
 }

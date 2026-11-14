@@ -318,7 +318,7 @@ impl CacheLog {
 
     /// Marks all cache entries as read.
     pub fn mark_all_as_read(&mut self) {
-        for (_, access) in self.log.iter_mut() {
+        for access in self.log.values_mut() {
             match access {
                 Access::Write(val) => {
                     let val = val.take();

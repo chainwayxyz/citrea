@@ -8,6 +8,7 @@ use accessors::{
     VerifiedStateTransitionForSequencerCommitmentIndexAccessor,
 };
 use borsh::BorshDeserialize;
+use citrea_primitives::risc0_cutoff::Risc0Cutoff;
 use citrea_primitives::{network_to_dev_mode, MAX_COMPRESSED_BLOB_SIZE};
 use initial_values::LCP_JMT_GENESIS_ROOT;
 use sov_modules_api::da::BlockHeaderTrait;
@@ -371,6 +372,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// # Logic
     /// - The block hash of the header is inserted into the JMT.
     /// - The last sequencer commitment index, last L2 height, and L2 state root are retrieved from the previous light client proof.
+    ///   On a network proven with RISC0, the first SP1 light client proof gets P0 as its previous output, see `run_circuit`.
     /// - If no previous proof exists, (0, 0, genesis root) is used as the starting point, and the initial method IDs are set.
     /// - Relevant transactions are processed:
     ///    - Complete proofs are decompressed, and processed with the `process_complete_proof` method.
@@ -646,6 +648,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     /// * `input` - The input to the light client circuit, containing the DA block header, inclusion proof, completeness proof, and previous light client proof, and the witness.
     /// * `storage` - The storage used for accessing the JMT state, performing updates, and validating read and write operations.
     /// * `network` - The Citrea network to use for verifying the DA block header
+    /// * `risc0_cutoff` - Used only if there is no previous light client proof: with `Some(P0)` the circuit continues from P0, with `None` it starts from genesis. The guest must pass `risc0_cutoff(network)` for its compiled network.
     /// * `l2_genesis_root` - The L2 genesis root to start the L2 state if there is no previous light client proof
     /// * `initial_batch_proof_method_ids` - To initialize the batch proof method IDs in the JMT state if this is the first light client proof
     /// * `batch_prover_da_public_key` - The public key of the batch prover
@@ -654,9 +657,11 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
     ///
     /// # Logic
     /// 1. Verifies the previous light client proof and extracts its output.
+    ///    Without a previous light client proof, a network proven with RISC0 continues from P0, its
+    ///    compiled-in RISC0 cutoff, as the previous output. See `citrea_primitives::risc0_cutoff`.
     /// 2. Uses `DaVerifier::verify_header_chain` to check if the new block header is valid under the Bitcoin consensus rules (including proof-of-work)
     ///    and follows the latest DA block from the previous light client proof. If there is no previous light client proof,
-    ///    a predefined constant initial network state is used.
+    ///    a predefined constant initial network state is used. With P0, the block must be `L0 + 1`.
     /// 3. Uses `DaVerifier::verify_transactions` to validate the inclusion and completeness proofs against the block header and retrieve the relevant transactions from the DA block.
     ///    This guarantees that all relevant transactions in the DA block will be processed.
     /// 4. Calls `run_l1_block` to process the DA transactions, and verifying the updates to the L2 state and the JMT state.
@@ -672,6 +677,7 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         input: LightClientCircuitInput<DaV::Spec>,
         storage: S,
         network: Network,
+        risc0_cutoff: Option<Risc0Cutoff>,
         l2_genesis_root: [u8; 32],
         initial_batch_proof_method_ids: InitialBatchProofMethodIds,
         batch_prover_da_public_key: &[u8],
@@ -684,25 +690,30 @@ impl<S: Storage, DS: DaSpec, Z: Zkvm> LightClientProofCircuit<S, DS, Z> {
         Z: ZkvmGuest,
     {
         // from input, parse previous light client proof output
-        let previous_light_client_proof_output =
-            if let Some(proof) = input.previous_light_client_proof {
-                // previous LCP is verified with the host verify API
-                let prev_output = Z::verify_and_deserialize_output::<LightClientCircuitOutput>(
-                    &proof,
-                    &input.light_client_proof_method_id.into(),
-                    network_to_dev_mode(network),
-                )
-                .expect("Previous light client proof is invalid");
+        let previous_light_client_proof_output = if let Some(proof) =
+            input.previous_light_client_proof
+        {
+            // previous LCP is verified with the host verify API
+            let prev_output = Z::verify_lcp_and_deserialize_output::<LightClientCircuitOutput>(
+                &proof,
+                &input.light_client_proof_method_id.into(),
+                network_to_dev_mode(network),
+            )
+            .expect("Previous light client proof is invalid");
 
-                // Ensure method IDs match
-                assert_eq!(
-                    input.light_client_proof_method_id,
-                    prev_output.light_client_proof_method_id,
-                );
-                Some(prev_output)
-            } else {
-                None
-            };
+            // Ensure method IDs match
+            assert_eq!(
+                input.light_client_proof_method_id,
+                prev_output.light_client_proof_method_id,
+            );
+            Some(prev_output)
+        } else {
+            // The first SP1 light client proof of a network proven with RISC0 has no previous
+            // proof and continues from P0, the RISC0 light client proof output at L0
+            // P0's DA state only accepts L0 + 1, so no other L1 block can start from P0
+            // Networks without RISC0 history start from genesis
+            risc0_cutoff.map(|p0| p0.light_client_proof_output(input.light_client_proof_method_id))
+        };
 
         let new_da_state = da_verifier
             .verify_header_chain(
@@ -766,6 +777,5 @@ pub fn citrea_network_to_chain_id(network: sov_rollup_interface::Network) -> u64
         sov_rollup_interface::Network::Testnet => 5115,
         sov_rollup_interface::Network::Devnet => 62298,
         sov_rollup_interface::Network::Nightly => 5665,
-        sov_rollup_interface::Network::TestNetworkWithForks => 5665,
     }
 }

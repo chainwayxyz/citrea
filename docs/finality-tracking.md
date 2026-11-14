@@ -24,7 +24,8 @@ For each finalized L1 block, the full node uses the Bitcoin DA service to extrac
 2. **Processing batch proofs**  
    For each proof:  
      
-   - The batch proof output is extracted, and the proof is verified against the correct fork's code commitment. If verification fails, proof is skipped.  
+   - For v3/Pomelo ready full nodes, RISC0 batch proofs published at L1 heights `<= L0` (the network's configured snapshot/cutoff height) are authenticated by the batch prover's DA signature. Their outputs are extracted without RISC0 proof verification. Historical proven status therefore trusts the batch prover. To independently verify that history, sync a v2 full node through `L0` using its stop-height options, then upgrade to v3; see [the migration instructions](./sp1.md#existing-network-activation).
+   - Proofs published after `L0`, or on networks without RISC0 history, require SP1 verification against Pomelo's code commitment. If verification fails, the proof is skipped. Pending proofs use their original L1 publication height, even when retried after `L0`.
    - If the full node does not know the last L1 hash on the [Bitcoin Light Client](./bitcoin-light-client-contract.md), proof is skipped.  
    - If the proof does not advance the proven height, it is discarded.  
    - If any of the sequencer commitments referenced by the proof are pending, the proof is stored as pending.

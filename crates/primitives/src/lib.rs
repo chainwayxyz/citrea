@@ -3,6 +3,7 @@ pub mod compression;
 mod constants;
 pub mod forks;
 pub mod merkle;
+pub mod risc0_cutoff;
 pub mod types;
 pub mod zk_dev_mode;
 

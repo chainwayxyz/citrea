@@ -4,7 +4,7 @@
 //! including L1 block processing times and current L1 block number.
 use std::sync::LazyLock;
 
-use metrics::Gauge;
+use metrics::{Counter, Gauge};
 use metrics_derive::Metrics;
 
 #[derive(Metrics)]
@@ -26,6 +26,9 @@ pub struct LightClientProverMetrics {
     /// Gauge for the highest proven l2 height
     #[metric(describe = "The highest proven l2 height")]
     pub highest_proven_l2_height: Gauge,
+    /// Failed attempts to process the queued L1 blocks, each retried with backoff
+    #[metric(describe = "Failed attempts to process the queued L1 blocks")]
+    pub failed_l1_block_attempts: Counter,
 }
 
 impl LightClientProverMetrics {

@@ -18,7 +18,6 @@ WORKDIR /srv/app
 
 COPY genesis/ ./genesis/
 COPY citrea citrea
-COPY r0vm /usr/local/bin/
 COPY citrea-cli /usr/local/bin/
 COPY entrypoint.sh entrypoint.sh
 

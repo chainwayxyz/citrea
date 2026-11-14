@@ -47,7 +47,7 @@ impl From<StoredLightClientProofOutput> for LightClientProofOutputRpcResponse {
     fn from(value: StoredLightClientProofOutput) -> Self {
         Self {
             l2_state_root: value.l2_state_root,
-            light_client_proof_method_id: value.light_client_proof_method_id.into(),
+            light_client_proof_method_id: value.light_client_proof_method_id,
             latest_da_state: LatestDaStateRpcResponse {
                 block_hash: value.latest_da_state.block_hash,
                 block_height: U64::from(value.latest_da_state.block_height),

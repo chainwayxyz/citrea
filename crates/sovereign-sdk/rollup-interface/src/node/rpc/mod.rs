@@ -5,13 +5,13 @@ use std::collections::BTreeMap;
 
 use alloy_primitives::{Bytes, B256, U32, U64};
 use block::L2BlockResponse;
-use risc0_zkp::core::digest::Digest;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::da::SequencerCommitment;
 use crate::zk::batch_proof::output::CumulativeStateDiff;
 use crate::zk::light_client_proof::output::VerifiedStateTransitionForSequencerCommitmentIndex;
+use crate::zk::sp1::ProgramVKeyHash;
 use crate::zk::ProvingSessionInfo;
 use crate::RefCount;
 
@@ -83,9 +83,9 @@ pub struct LatestDaStateRpcResponse {
 pub struct BatchProofMethodIdRpcResponse {
     /// Activation height
     pub height: U64,
-    #[serde(with = "utils::rpc_hex")]
-    /// Method id
-    pub method_id: Digest,
+    /// Native SP1 verification-key digest.
+    #[serde(with = "utils::rpc_hex_words")]
+    pub method_id: ProgramVKeyHash,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -124,8 +124,8 @@ pub struct LightClientProofOutputRpcResponse {
     pub lcp_state_root: [u8; 32],
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
-    #[serde(with = "utils::rpc_hex")]
-    pub light_client_proof_method_id: Digest,
+    #[serde(with = "utils::rpc_hex_words")]
+    pub light_client_proof_method_id: ProgramVKeyHash,
     /// Latest DA state after proof
     pub latest_da_state: LatestDaStateRpcResponse,
     /// Last l2 height the light client proof verifies
@@ -151,6 +151,10 @@ pub struct LightClientProofResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LightClientCircuitInputRpcResponse {
+    /// Host-only proof stream, separate from the guest's serialized input.
+    /// Each element is encoded as a `0x`-prefixed hex string.
+    #[serde(with = "utils::rpc_hex_vec")]
+    pub assumptions: Vec<Vec<u8>>,
     /// L1 block height used to build the input.
     pub l1_height: U64,
     /// L1 block hash used to build the input.
@@ -480,6 +484,72 @@ pub trait LedgerRpcProvider {
 /// JSON-RPC -related utilities. Occasionally useful but unimportant for most
 /// use cases.
 pub mod utils {
+    /// Serialization and deserialization of a sequence of `0x`-prefixed hex strings.
+    pub mod rpc_hex_vec {
+        use serde::ser::SerializeSeq;
+        use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+        /// Serialize each byte vector using the same hex format as other RPC fields.
+        pub fn serialize<S: Serializer>(
+            data: &[Vec<u8>],
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            #[derive(Serialize)]
+            struct HexBytes<'a>(#[serde(with = "super::rpc_hex")] &'a [u8]);
+
+            let mut seq = serializer.serialize_seq(Some(data.len()))?;
+            for bytes in data {
+                seq.serialize_element(&HexBytes(bytes))?;
+            }
+            seq.end()
+        }
+
+        /// Deserialize each hex string into a byte vector.
+        pub fn deserialize<'de, D: Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<Vec<Vec<u8>>, D::Error> {
+            #[derive(Deserialize)]
+            struct HexBytes(#[serde(with = "super::rpc_hex")] Vec<u8>);
+
+            let data = Vec::<HexBytes>::deserialize(deserializer)?;
+            Ok(data.into_iter().map(|bytes| bytes.0).collect())
+        }
+    }
+
+    /// Native program digests as 32-byte hex strings, matching SP1 6.10.0's
+    /// [HashableKey::hash_bytes()] and [words_to_bytes_be]. Deserialization reverses
+    /// that encoding; this is separate from the packed Groth16 `bytes32()` encoding.
+    ///
+    /// [HashableKey::hash_bytes()]: https://github.com/succinctlabs/sp1/blob/d83ed91f96701209613720708f36ffce0e98ed33/crates/hypercube/src/verifier/hashable_key.rs#L77-L80
+    /// [words_to_bytes_be]: https://github.com/succinctlabs/sp1/blob/d83ed91f96701209613720708f36ffce0e98ed33/crates/hypercube/src/verifier/hashable_key.rs#L34-L43
+    pub mod rpc_hex_words {
+        use serde::{Deserializer, Serializer};
+
+        /// Serialize eight native words in big-endian order with a `0x` prefix.
+        pub fn serialize<S: Serializer>(
+            words: &[u32; 8],
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            let bytes: [u8; 32] = std::array::from_fn(|i| words[i / 4].to_be_bytes()[i % 4]);
+            super::rpc_hex::serialize(bytes, serializer)
+        }
+
+        /// Decode a 32-byte hex string into eight native words.
+        pub fn deserialize<'de, D: Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<[u32; 8], D::Error> {
+            let bytes: [u8; 32] = super::rpc_hex::deserialize(deserializer)?;
+            Ok(std::array::from_fn(|i| {
+                u32::from_be_bytes([
+                    bytes[4 * i],
+                    bytes[4 * i + 1],
+                    bytes[4 * i + 2],
+                    bytes[4 * i + 3],
+                ])
+            }))
+        }
+    }
+
     /// Serialization and deserialization logic for `0x`-prefixed hex strings.
     pub mod rpc_hex {
         use std::fmt;

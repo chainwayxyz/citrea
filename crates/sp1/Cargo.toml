@@ -1,32 +1,45 @@
 [package]
 name = "citrea-sp1"
-authors = { workspace = true }
-edition = { workspace = true }
-homepage = { workspace = true }
-license = { workspace = true }
-repository = { workspace = true }
-
-version = { workspace = true }
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 publish = false
-readme = "README.md"
-resolver = "2"
 
 [dependencies]
-anyhow = { workspace = true }
-bincode = { workspace = true }
-borsh = { workspace = true }
-serde = { workspace = true }
-sov-db = { path = "../sovereign-sdk/full-node/db/sov-db", optional = true }
+anyhow.workspace = true
+async-trait = { workspace = true, optional = true }
+bincode = { workspace = true, optional = true }
+borsh.workspace = true
+citrea-common = { path = "../common", optional = true }
+metrics = { workspace = true, optional = true }
 sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface" }
-sp1-sdk = { version = "3.0.0", default-features = false, features = ["network-v2"], optional = true }
-sp1-zkvm = { version = "3.0.0", default-features = false, features = ["lib"] }
-tracing = { workspace = true }
+sp1-sdk = { workspace = true, optional = true }
+sp1-zkvm.workspace = true
+tokio = { workspace = true, optional = true }
+# Match the SDK's tonic version and TLS features, so RPC statuses can be downcast and the
+# network's PROVE price read over the SDK's transport.
+tonic = { version = "0.14.6", default-features = false, features = ["channel", "tls-ring", "tls-native-roots"], optional = true }
+tracing = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+
+[dev-dependencies]
+clap.workspace = true
+
+[[example]]
+name = "network_proof"
+required-features = ["native"]
 
 [features]
 default = []
 native = [
-  "dep:sov-db",
   "dep:sp1-sdk",
+  "dep:citrea-common",
+  "dep:metrics",
+  "dep:tokio",
+  "dep:uuid",
+  "dep:async-trait",
+  "dep:bincode",
+  "dep:tonic",
+  "dep:tracing",
   "sov-rollup-interface/native",
 ]
-cuda = ["sp1-sdk/cuda"]

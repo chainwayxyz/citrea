@@ -4,7 +4,7 @@ use alloy::hex::FromHex;
 use alloy_consensus::TxReceipt;
 use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_eips::{BlockId, BlockNumberOrTag};
-use alloy_primitives::{address, Address, Bytes, TxKind, B256, U64};
+use alloy_primitives::{address, keccak256, Address, Bytes, TxKind, B256, U64};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use citrea_primitives::min_base_fee_per_gas;
 use rand::thread_rng;
@@ -1291,6 +1291,119 @@ fn test_blob_tx() {
             L2BlockModuleCallError::EvmTxTypeNotSupported("EIP-4844".to_string())
         );
     }
+}
+
+// EIP-7702 arrives with tangerine: the transaction must not delegate before it, and the same
+// transaction delegates once tangerine activates.
+#[test]
+fn test_eip7702_tx_activates_at_tangerine() {
+    let signer1 = TestSigner::new_default();
+    let signer2 = TestSigner::new(SecretKey::new(&mut thread_rng()));
+
+    let config = EvmConfig {
+        data: vec![
+            AccountData {
+                address: signer1.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+            AccountData {
+                address: signer2.address(),
+                balance: U256::from_str("100000000000000000000").unwrap(),
+                code_hash: KECCAK_EMPTY,
+                code: Bytes::default(),
+                nonce: 0,
+                storage: Default::default(),
+            },
+        ],
+        ..Default::default()
+    };
+    let (mut evm, mut working_set, _spec_id, ledger_db) =
+        get_evm_with_spec(&config, SovSpecId::Kumquat);
+
+    let l1_fee_rate = 0;
+    let mut l2_height = 2;
+    let mut l2_block_info = HookL2BlockInfo {
+        l2_height,
+        pre_state_root: [10u8; 32],
+        current_spec: SovSpecId::Kumquat,
+        sequencer_pub_key: get_test_seq_pub_key(),
+        l1_fee_rate,
+        timestamp: 0,
+    };
+
+    let delegated_address = signer1.address().create(0);
+    let auth = signer1
+        .get_signed_authorization(delegated_address, 0)
+        .unwrap();
+    let tx = signer2
+        .sign_eip7702_transaction(
+            signer1.address(),
+            LogsContract::default().publish_event("helo".to_string()),
+            0,
+            vec![auth],
+        )
+        .unwrap();
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::Kumquat, l1_fee_rate);
+
+        // The block may skip the tx or fail the call, the state checks below cover both.
+        let _ = evm.call(
+            CallMessage {
+                txs: vec![tx.clone()],
+            },
+            &context,
+            &mut working_set,
+        );
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let signer1_account = evm
+        .account_info(&signer1.address(), &mut working_set)
+        .unwrap();
+    assert_eq!(signer1_account.nonce, 0);
+    assert_eq!(signer1_account.code_hash, None);
+
+    l2_block_info.current_spec = SovSpecId::Tangerine;
+    l2_block_info.l2_height += 1;
+    l2_height += 1;
+
+    evm.begin_l2_block_hook(&l2_block_info, &mut working_set);
+    {
+        let sender_address = generate_address::<C>("sender");
+        let context = C::new(sender_address, l2_height, SovSpecId::Tangerine, l1_fee_rate);
+
+        evm.call(CallMessage { txs: vec![tx] }, &context, &mut working_set)
+            .unwrap();
+    }
+    evm.end_l2_block_hook(&l2_block_info, &mut working_set);
+    evm.finalize_hook(&[99u8; 32], &mut working_set.accessory_state());
+
+    let expected_code = Bytes::from(
+        [
+            Bytes::from_hex("0xef0100").unwrap(),
+            Bytes::from(delegated_address.to_vec()),
+        ]
+        .concat(),
+    );
+
+    let signer1_account = evm
+        .account_info(&signer1.address(), &mut working_set)
+        .unwrap();
+    assert_eq!(signer1_account.nonce, 1);
+    assert_eq!(signer1_account.code_hash, Some(keccak256(&expected_code)));
+    assert_eq!(
+        evm.get_code(signer1.address(), None, &mut working_set, &ledger_db)
+            .unwrap(),
+        expected_code
+    );
 }
 
 #[test]

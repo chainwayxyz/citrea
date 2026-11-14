@@ -17,12 +17,11 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use citrea_common::rpc::utils::internal_rpc_error;
 use citrea_common::RpcConfig;
-use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::forks::proof_guest_spec_id;
 use citrea_stf::runtime::DefaultContext;
 use citrea_stf::verifier::get_last_l1_hash_on_contract;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use risc0_zkvm::{FakeReceipt, InnerReceipt, MaybePruned, ReceiptClaim};
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::BatchProverLedgerOps;
 use sov_db::schema::types::batch_proof::StoredBatchProofOutput;
@@ -37,6 +36,7 @@ use sov_rollup_interface::rpc::{
 };
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::zk::batch_proof::output::{BatchProofCircuitOutput, CumulativeStateDiff};
+use sov_rollup_interface::zk::sp1::SP1Proof;
 use sov_rollup_interface::zk::ProvingSessionInfo;
 use tokio::sync::{mpsc, oneshot};
 use tracing::info;
@@ -502,20 +502,19 @@ where
 
         let output_serialized = borsh::to_vec(&output).expect("Output serialization cannot fail");
 
-        let spec_id = fork_from_block_number(last_l2_block.height).spec_id;
         let method_id: [u32; 8] = self
             .context
             .code_commitments
-            .get(&spec_id)
-            .expect("Spec for L2 block must exist")
+            .get(&proof_guest_spec_id())
+            .expect("Proof guest spec must have a code commitment")
             .clone()
             .into();
 
-        let claim = MaybePruned::Value(ReceiptClaim::ok(method_id, output_serialized));
-        let fake_receipt = FakeReceipt::new(claim);
-        // Receipt with verifiable claim
-        let receipt = InnerReceipt::Fake(fake_receipt);
-        let proof = bincode::serialize(&receipt).expect("Receipt serialization cannot fail");
+        let receipt = SP1Proof::Mock {
+            program: method_id,
+            public_values: output_serialized,
+        };
+        let proof = borsh::to_vec(&receipt).expect("Proof serialization cannot fail");
 
         let tx_id = self
             .context

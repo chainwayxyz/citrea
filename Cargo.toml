@@ -15,11 +15,10 @@ members = [
   "crates/primitives",
   "crates/prover-services",
   "crates/storage-ops",
-  "crates/risc0",
+  "crates/sp1",
   "crates/sequencer",
   "crates/short-header-proof-provider",
   "crates/l2-block-rule-enforcer",
-  # "crates/sp1",
   # Sovereign sdk
   "crates/sovereign-sdk/rollup-interface",
   "crates/sovereign-sdk/adapters/mock-da",
@@ -54,81 +53,74 @@ clippy.doc_overindented_list_items = "allow"
 
 [workspace.dependencies]
 # External dependencies
-async-trait = "0.1.83"
+async-trait = "0.1.92"
 anyhow = { version = "1.0.95", default-features = false }
 backoff = { version = "0.4.0", features = ["futures", "tokio"] }
-base64 = "0.22"
-borsh = { version = "1.5", default-features = false, features = ["derive"] }
+base64 = "0.23"
+borsh = { version = "1.8", default-features = false, features = ["derive"] }
 # TODO: Consider replacing this serialization format
 #     https://github.com/Sovereign-Labs/sovereign-sdk/issues/283
 bincode = "1.3.3"
-bitcoin = { version = "0.32.5", features = ["serde", "rand"] }
+bitcoin = { version = "0.32.102", features = ["serde", "rand"] }
 bitcoincore-rpc = "0.18.0"
 bcs = "0.1.6"
 bech32 = { version = "0.9.1", default-features = false }
-brotli = "7"
+brotli = "9"
 byteorder = { version = "1.5.0", default-features = false }
-bytes = { version = "1.10.0", default-features = false }
-chrono = { version = "0.4.39", default-features = false }
-clap = { version = "4.5.23", features = ["derive", "env"] }
+bytes = { version = "1.12.1", default-features = false }
+chrono = { version = "0.4.45", default-features = false }
+clap = { version = "4.6.7", features = ["derive", "env"] }
 const-hex = "1.14"
 constmuck = "1.1"
 crypto-bigint = "0.5.5"
 digest = { version = "0.10.7", default-features = false, features = ["alloc"] }
-derive_more = { version = "1", default-features = false }
-faster-hex = "0.10.0"
-futures = "0.3"
-hyper = "1.6.0"
-itertools = { version = "0.13.0", default-features = false }
-jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "550a2f2" }
-jsonrpsee = { version = "0.24.8", features = ["jsonrpsee-types"] }
+derive_more = { version = "2.1", default-features = false }
+faster-hex = "1.0.0"
+futures = "0.3.34"
+hyper = "1.12.0"
+itertools = { version = "0.15.0", default-features = false }
+jmt = { git = "https://github.com/chainwayxyz/jmt.git", rev = "789491939c3ab5c5fe3f0c50fcd0262d138c92bd" }
+jsonrpsee = { version = "0.24.11", features = ["jsonrpsee-types"] }
 k256 = { version = "0.13.4" }
-lru = "0.18"
+lru = "0.19.0"
 hex = { version = "0.4.3", default-features = false, features = ["alloc", "serde"] }
 log-panics = { version = "2", features = ["with-backtrace"] }
-metrics = "0.24.3"
-metrics-derive = "0.1"
-metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
-metrics-util = "0.19.0"
-# 1.13 uses getrandom 0.3
-uuid = { version = "=1.12.1", default-features = false, features = ["serde", "borsh", "v7"] }
-parking_lot = "0.12.3"
+metrics = "0.24.6"
+metrics-derive = "0.1.2"
+metrics-exporter-prometheus = { version = "0.18.3", default-features = false }
+metrics-util = "0.20.4"
+# SP1 v6 executor requires UUID >= 1.17. Newer uuid releases need serde_core, blocked by the serde pin below.
+uuid = { version = "1.18.1", default-features = false, features = ["serde", "borsh", "v7"] }
+parking_lot = "0.13.0"
 proptest = { version = "1.6.0", default-features = false, features = ["alloc"] }
-rand = "0.8"
-rayon = "1.8.0"
-rlimit = "0.10.2"
+rand = "0.8.8"
+rayon = "1.12.0"
+rlimit = "0.11.0"
 rustc_version_runtime = { version = "0.3.0", default-features = false }
 rs_merkle = "1.4.2"
-reqwest = { version = "0.12.12", features = ["rustls-tls", "json", "http2"], default-features = false }
+reqwest = { version = "0.12.28", features = ["rustls-tls", "json", "http2"], default-features = false }
 rocksdb = { version = "0.24.0", features = ["lz4", "jemalloc", "bindgen-runtime"], default-features = false }
 serde = { version = "=1.0.218", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1", default-features = false, features = ["alloc"] }
-sha2 = { version = "0.10.8", default-features = false, features = ["asm"] }
-schemars = { version = "0.8.16", features = ["derive"] }
+sha2 = { version = "0.10.9", default-features = false, features = ["asm"] }
+schemars = { version = "1.2", features = ["derive"] }
 secp256k1 = { version = "0.30.0", default-features = false, features = ["global-context", "recovery"] }
-thiserror = { version = "2", default-features = false }
+thiserror = { version = "2.0.21", default-features = false }
 tinyvec = { version = "1", default-features = false, features = ["alloc", "rustc_1_61", "rustc_1_57", "rustc_1_55"] }
-tracing = { version = "0.1.41", default-features = false, features = ["attributes"] }
-tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt"] }
-toml = { version = "0.8.0", default-features = false, features = ["parse"] }
-tempfile = "3.8"
-tokio = { version = "1.46.1", features = ["macros", "rt", "rt-multi-thread", "sync", "time", "fs"] }
-tokio-stream = { version = "0.1" }
-tower-http = { version = "0.5.0", features = ["cors"] }
+tracing = { version = "0.1.44", default-features = false, features = ["attributes"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+toml = { version = "0.9.5", default-features = false, features = ["parse", "serde"] }
+tempfile = "3.27.0"
+tokio = { version = "1.54.1", features = ["macros", "rt", "rt-multi-thread", "sync", "time", "fs"] }
+tokio-stream = { version = "0.1.19" }
+tower-http = { version = "0.7.1", features = ["cors"] }
 tower = { version = "0.4.13", features = ["util", "timeout"] }
-url = { version = "2.5.4" }
+url = { version = "2.5.8" }
 
-# Risc0 dependencies
-bonsai-sdk = { version = "1.4.1" }
-boundless-market = { version = "=1.0.1", default-features = false }
-risc0-ethereum-contracts = { version = "3.0.1" }
-risc0-binfmt = "3.0.2"
-risc0-zkvm = { version = "3.0.3", default-features = false }
-risc0-zkvm-platform = "2.2.0"
-risc0-zkp = "3.0.2"
-risc0-circuit-rv32im = "4.0.2"
-risc0-build = "3.0.3"
-rzup = { version = "0.5.1", default-features = false }
+# SP1 dependencies: keep the host, guest, and verifier on the same release.
+sp1-sdk = { version = "=6.10.0", default-features = false, features = ["network"] }
+sp1-zkvm = { version = "=6.10.0", features = ["verify"] }
+sp1-verifier = { version = "=6.10.0", default-features = false }
 
 # EVM dependencies
 revm-inspectors = { version = "0.18.0", default-features = false }
@@ -151,7 +143,7 @@ reth-rpc = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", defaul
 reth-stages = { git = "https://github.com/paradigmxyz/reth", tag = "v1.3.7", default-features = false }
 
 revm = { version = "21.0.0", features = ["serde"], default-features = false }
-revm-precompile = { version = "18.0.0", default-features = false, features = ['secp256r1', 'blst', 'bn'] }
+revm-precompile = { version = "18.0.0", default-features = false, features = ['secp256r1', 'bn', 'portable'] }
 revm-primitives = { version = "17.0.0", default-features = false }
 revm-bytecode = { version = "2.0.0", default-features = false }
 alloy-genesis = { version = "0.13", default-features = false }
@@ -171,7 +163,7 @@ alloy-network = { version = "0.13", default-features = false }
 alloy-signer = { version = "0.13", default-features = false }
 alloy-signer-local = { version = "0.13.0", default-features = false }
 
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "67c724bb0a8b3ff18b1aa1419016d3bd90cef374" }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "fe92b4e" }
 
 [patch.crates-io]
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "a6e011a" }
@@ -184,3 +176,9 @@ opt-level = 3
 lto = true
 codegen-units = 1
 debug = 0
+
+[profile.dev.package.sp1-core-executor]
+opt-level = 3
+
+[profile.dev.package.sp1-primitives]
+opt-level = 3

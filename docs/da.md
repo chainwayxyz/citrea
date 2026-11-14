@@ -22,7 +22,9 @@ There are 4 transaction types:
 - Batch proof MethodId. Type = 0x03.
 - Sequencer commitment. Type = 0x04.
 
-The format of the bodies is different for each type.
+The format of the bodies is different for each type. Bodies split into chunks push every chunk except the last as exactly 520 bytes, and no chunk is empty.
+
+The first input of a reveal transaction spends the taproot output through the script path with exactly three witness elements: `[signature, reveal script, control block]`. Reveals with any other witness length, including an annex, are ignored.
 
 ### Complete Batch Proof
 
@@ -31,9 +33,9 @@ OP_FALSE
 OP_IF
 OP_PUSHDATA(signature)
 OP_PUSHDATA(batch_prover_public_key)
-OP_PUSHDATA(1; - up to 520-bytes chunk of blob)
+OP_PUSHDATA(1; - 520-bytes chunk of blob)
 ...
-OP_PUSHDATA(N; - up to 520-bytes chunk of blob)
+OP_PUSHDATA(N; - last, non-empty chunk of blob, up to 520 bytes)
 OP_ENDIF
 OP_PUSHDATA(8 random bytes [nonce, nonce > 15 to avoid script parsing issues ])
 OP_NIP
@@ -48,9 +50,9 @@ OP_FALSE
 OP_IF
 OP_PUSHDATA(signature)
 OP_PUSHDATA(batch_prover_public_key)
-OP_PUSHDATA(1; - up to 520-bytes chunk of blob)
+OP_PUSHDATA(1; - 520-bytes chunk of blob)
 ...
-OP_PUSHDATA(N; - up to 520-bytes chunk of blob)
+OP_PUSHDATA(N; - last, non-empty chunk of blob, up to 520 bytes)
 OP_ENDIF
 OP_PUSHDATA(8 random bytes [nonce, nonce > 15 to avoid script parsing issues ])
 OP_NIP
@@ -63,9 +65,9 @@ Where `blob` is `borsh(DataOnDa::Aggregate([chunk1_txid, chunk2_txid..], [chunk1
 ```
 OP_FALSE
 OP_IF
-OP_PUSHDATA(1; - up to 520-bytes chunk of blob)
+OP_PUSHDATA(1; - 520-bytes chunk of blob)
 ...
-OP_PUSHDATA(N; - up to 520-bytes chunk of blob)
+OP_PUSHDATA(N; - last, non-empty chunk of blob, up to 520 bytes)
 OP_ENDIF
 OP_PUSHDATA(8 random bytes [nonce, nonce > 15 to avoid script parsing issues ])
 OP_NIP

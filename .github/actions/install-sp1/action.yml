@@ -1,0 +1,30 @@
+name: Install SP1
+description: Install the pinned SP1 compiler and compatible Cargo. Run after rust-cache.
+inputs:
+  github_token:
+    description: GitHub token for toolchain downloads
+    required: true
+runs:
+  using: composite
+  steps:
+    # sp1-core-executor-runner's build script writes the runner binary it embeds under
+    # ~/.cargo/registry/src, which rust-cache never restores. Drop its cached build-script
+    # output so the script reruns rather than pointing at a missing binary.
+    - name: Rebuild SP1 runner after cache restore
+      shell: bash
+      run: if [ -d target ]; then find target -path '*/build/sp1-core-executor-runner-*' -prune -exec rm -rf {} +; fi
+    - name: Install guest build tools
+      shell: bash
+      run: sudo apt-get update && sudo apt-get install -y clang protobuf-compiler
+    - name: Install SP1 v6.10.0
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        set -euo pipefail
+        tools/install-sp1up.sh
+        export PATH="$HOME/.sp1/bin:$PATH"
+        sp1up --version v6.10.0
+        tools/verify-sp1-toolchain.sh
+        rustup toolchain install 1.96.0 --profile minimal
+        echo "$HOME/.sp1/bin" >> "$GITHUB_PATH"

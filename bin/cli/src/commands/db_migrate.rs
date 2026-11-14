@@ -22,7 +22,8 @@ pub(crate) async fn db_migrate(
     // Get migrations list based on node type
     let migrations = match node_type {
         NodeTypeArg::Sequencer => citrea_sequencer::db_migrations::migrations(),
-        NodeTypeArg::FullNode => citrea_fullnode::db_migrations::migrations(),
+        // Without the network, the migrations that need it run when the node starts
+        NodeTypeArg::FullNode => citrea_fullnode::db_migrations::migrations(None),
         NodeTypeArg::BatchProver => citrea_batch_prover::db_migrations::migrations(),
         NodeTypeArg::LightClientProver => citrea_light_client_prover::db_migrations::migrations(),
     };

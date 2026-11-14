@@ -12,7 +12,7 @@ There is 4 types of nodes that make up the Citrea rollup:
 
 See [node-types.md](./node-types.md) for explanation on node types.
 
-Citrea's DA and settlement on Bitcoin is achieved through sequencer commitments and batch proofs. The sequencer commitments are bitcoin transactions that commit to the latest state of the rollup. Batch proofs are Bitcoin transactions that contain Risc0 Groth16 proofs that prove Citrea state goes from A to B when L2 blocks that were committed to by these sequencer commitments are executed. See [sequencer-commitment.md](./sequencer-commitment.md) and [batch-proof-circuit.md](./batch-proof-circuit.md).
+Citrea's DA and settlement on Bitcoin is achieved through sequencer commitments and batch proofs. The sequencer commitments are bitcoin transactions that commit to the latest state of the rollup. Batch proofs are Bitcoin transactions that contain SP1 Groth16 proofs that prove Citrea state goes from A to B when L2 blocks that were committed to by these sequencer commitments are executed. See [sequencer-commitment.md](./sequencer-commitment.md) and [batch-proof-circuit.md](./batch-proof-circuit.md).
 
 These commitments and proofs are read from Bitcoin by full nodes and the light client proof circuit. Full nodes are used by users to access the latest state of the rollup and track the finality of L2 blocks, the light client proof is used by our Bitcoin bridge [Clementine](https://citrea.xyz/clementine_whitepaper.pdf) to resolve disputes (operator challenges). For more detail on full node finality tracking see [finality-tracking.md](./finality-tracking.md); for more detail on the light client proof circuit see [light-client-circuit.md](./light-client-circuit.md).
 
@@ -70,7 +70,7 @@ The batch prover on the other hand is semi-trusted. The batch proof circuit make
 
 - `crates/prover-services`: Enables parallelizing ZK proof production.
 
-- `crates/risc0`: Risc0 ZK Vm adapter.
+- `crates/sp1`: SP1 ZK Vm adapter.
 
 - `crates/sequencer`: Citrea sequencer implementation. (See [node-types.md](./node-types.md#1-sequencer-node)).
 
@@ -80,7 +80,7 @@ The batch prover on the other hand is semi-trusted. The batch proof circuit make
 
 - `crates/storage-ops`: Database operations like pruning and rollback.
 
-- `guests/risc0`: Batch proof and light client proof circuit targets. These are separated from other crates to allow for more flexible compilation.
+- `guests/sp1`: Batch proof and light client proof circuit targets. These are separated from other crates to allow for more flexible compilation.
 
 You may notice the usage of "node-level" and "circuit-level" code.
 

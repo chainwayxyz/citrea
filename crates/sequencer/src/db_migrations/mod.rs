@@ -1,5 +1,6 @@
 use std::sync::OnceLock;
 
+use bitcoin_da::db_migrations::ReencodeShortHeaderProofs;
 use sov_db::ledger_db::migrations::LedgerMigration;
 
 /// Migration to drop unused fullnode tables from sequencer databases
@@ -22,6 +23,7 @@ pub fn migrations() -> &'static Vec<Box<dyn LedgerMigration + Send + Sync + 'sta
             Box::new(DropFullnodeTables),
             Box::new(DropPendingCommitments),
             Box::new(DropMempoolTxs),
+            Box::new(ReencodeShortHeaderProofs),
         ]
     })
 }

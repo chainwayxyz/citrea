@@ -20,10 +20,11 @@ borsh = { workspace = true, features = ["default", "bytes", "rc"] }
 bytes = { workspace = true, default-features = true }
 digest = { workspace = true, features = ["default"] }
 faster-hex = { workspace = true, optional = true }
-hex = { workspace = true, optional = true, features = ["default"] }
+hex = { workspace = true, features = ["default"] }
 jmt = { workspace = true }
 uuid = { workspace = true, optional = true }
-risc0-zkp = { workspace = true, optional = true }
+sp1-verifier.workspace = true
+sp1-zkvm.workspace = true
 serde = { workspace = true, features = ["default", "rc"] }
 sha2 = { workspace = true }
 thiserror = { workspace = true, optional = true }
@@ -42,12 +43,14 @@ native = [
   "alloy-primitives",
   "tokio",
   "tracing",
-  "risc0-zkp",
   "faster-hex",
   "async-trait",
   "thiserror",
-  "hex",
   "uuid",
   "async-trait",
 ]
 testing = []
+
+# Only the guest build, without `native`, uses it.
+[package.metadata.cargo-udeps.ignore]
+normal = ["sp1-zkvm"]

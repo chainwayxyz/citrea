@@ -49,6 +49,9 @@ pub struct ProofData {
 
     /// The ELF binary to be used
     pub elf: Elf,
+
+    /// Pinned program commitment of `elf`, so execution-only proofs need no key setup
+    pub program: [u32; 8],
 }
 
 /// A proof along with proving info and the time it took to generate it.

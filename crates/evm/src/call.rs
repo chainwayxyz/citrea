@@ -154,7 +154,7 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // Iterate each evm_txs_recovered and results pair
         // Create a PendingTransaction for each pair
         // Push each PendingTransaction to pending_transactions
-        for (evm_tx_recovered, result) in users_txs.into_iter().zip(results.into_iter()) {
+        for (evm_tx_recovered, result) in users_txs.into_iter().zip(results) {
             let gas_used = result.gas_used();
             cumulative_gas_used += gas_used;
             let tx_hash = evm_tx_recovered.hash();

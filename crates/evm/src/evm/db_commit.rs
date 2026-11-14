@@ -20,11 +20,16 @@ impl<C: sov_modules_api::Context> DatabaseCommit for EvmDb<'_, C> {
                 continue;
             }
             if account.is_selfdestructed() {
-                // for backwards compatibility (needed on devnet and testnet only fix the issue post TangeloSelfdestructFix)
-                if self.citrea_spec >= SpecId::TangeloSelfdestructFix {
-                    // EIP-6780: Account created and destroyed in same TX is fully deleted.
+                if self.citrea_spec >= SpecId::Pomelo {
+                    // EIP-6780: revm only marks an account as selfdestructed when it was also
+                    // created in this transaction. A prefunded address already has an index
+                    // and is cleared in place instead.
+                    //
                     // Any cBTC in the contract before selfdestruct is sent to some beneficiary.
                     // Any cBTC sent after selfdestruct is lost (matches Ethereum behavior).
+                    self.evm.account_clear_if_exists(&address, self.working_set);
+                } else if self.citrea_spec >= SpecId::TangeloSelfdestructFix {
+                    // Preserve the historical tombstone allocation before Pomelo.
                     let info = DbAccountInfo::default();
                     self.evm.account_set(&address, &info, self.working_set);
                 }
@@ -33,39 +38,40 @@ impl<C: sov_modules_api::Context> DatabaseCommit for EvmDb<'_, C> {
                 continue;
             }
 
-            let mut new_account_flag = false;
-
-            let prev_info = self
-                .evm
-                .account_info(&address, self.working_set)
-                .unwrap_or_else(|| {
-                    new_account_flag = true;
-                    DbAccountInfo::default()
-                });
+            let prev_info = self.evm.account_info(&address, self.working_set);
 
             let new_info = account.info;
 
             if let Some(ref code) = new_info.code {
-                if !code.is_empty() {
-                    // we don't update code with analyzed code because that would mean we can change jump table
-                    // however we want without changing the code hash
-                    // that means we can fiddle with tx execution
-                    if self
-                        .evm
-                        .offchain_code
-                        .get(&new_info.code_hash, &mut self.working_set.offchain_state())
-                        .is_none()
-                    {
-                        self.evm.offchain_code.set(
-                            &new_info.code_hash,
-                            code,
-                            &mut self.working_set.offchain_state(),
-                        );
-                    }
+                // Only store code an account did not already have. Probing `offchain_code` for
+                // presence instead would be a read of unauthenticated state -- in the circuit its
+                // answer is a raw witness hint -- and it would seed the offchain cache with that
+                // answer, so the later verified read in `code_by_hash` would be served from cache
+                // and skip verification entirely. `prev_info` comes from the JMT, so comparing
+                // against it decides the same question without reading offchain state at all.
+                //
+                // The value written here is always canonical: revm derives it in-circuit, either
+                // from the deploy output or as an EIP-7702 designator. That is what makes it safe
+                // to write over an existing entry when the same code is deployed twice.
+                if !code.is_empty()
+                    && prev_info.as_ref().and_then(|info| info.code_hash)
+                        != Some(new_info.code_hash)
+                {
+                    self.evm.offchain_code.set(
+                        &new_info.code_hash,
+                        code,
+                        &mut self.working_set.offchain_state(),
+                    );
                 }
             }
 
-            let storage_slots = account.storage.into_iter().collect::<BTreeMap<_, _>>();
+            let only_commit_changed_storage = self.citrea_spec >= SpecId::Pomelo;
+            let storage_slots = account
+                .storage
+                .into_iter()
+                .filter(|(_, value)| !only_commit_changed_storage || value.is_changed())
+                .collect::<BTreeMap<_, _>>();
+
             // insert to StateVec keys must sorted -- or else nodes will have different state roots
             for (key, value) in storage_slots.into_iter() {
                 let value = value.present_value();
@@ -74,7 +80,15 @@ impl<C: sov_modules_api::Context> DatabaseCommit for EvmDb<'_, C> {
                     .storage_set(&address, &key, &value, self.working_set);
             }
 
-            if new_account_flag || check_account_info_changed(&prev_info, &new_info) {
+            let is_eip161_fork_fix_enabled = self.citrea_spec >= SpecId::Pomelo;
+            let should_skip_empty_account_creation =
+                is_eip161_fork_fix_enabled && prev_info.is_none() && new_info.is_empty();
+
+            if !should_skip_empty_account_creation
+                && prev_info
+                    .as_ref()
+                    .is_none_or(|prev_info| check_account_info_changed(prev_info, &new_info))
+            {
                 let info = new_info.into();
                 self.evm.account_set(&address, &info, self.working_set)
             }

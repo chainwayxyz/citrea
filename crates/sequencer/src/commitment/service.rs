@@ -80,6 +80,7 @@ where
         }
     }
 
+    /// Runs the commitment loop until shutdown, first syncing commitments from DA if not on first init.
     #[instrument(name = "CommitmentService", skip_all)]
     pub async fn run(
         mut self,
@@ -257,6 +258,7 @@ where
         Ok(())
     }
 
+    /// Stores commitments that are already in the DA mempool or mined on DA into the ledger DB.
     #[instrument(level = "trace", skip(self, working_set), err, ret)]
     pub async fn store_commitments_from_da(
         &mut self,
@@ -342,6 +344,7 @@ where
         Ok(())
     }
 
+    /// Builds a sequencer commitment over the L2 block hashes of the given range.
     #[instrument(level = "debug", skip_all, err)]
     pub fn get_commitment(
         &self,

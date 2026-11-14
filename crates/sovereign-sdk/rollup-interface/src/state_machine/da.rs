@@ -90,7 +90,7 @@ impl BatchProofMethodId {
 /// SequencerCommitment's are ordered by their index
 impl core::cmp::PartialOrd for SequencerCommitment {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        Some(self.index.cmp(&other.index))
+        Some(self.cmp(other))
     }
 }
 
@@ -127,6 +127,153 @@ pub enum DataOnDa {
     BatchProofMethodId(BatchProofMethodId),
     /// Sequencer commitment
     SequencerCommitment(SequencerCommitment),
+}
+
+impl DataOnDa {
+    /// Borsh discriminant for [`DataOnDa::Complete`].
+    pub const COMPLETE_TAG: u8 = 0;
+    /// Borsh discriminant for [`DataOnDa::Aggregate`].
+    pub const AGGREGATE_TAG: u8 = 1;
+    /// Borsh discriminant for [`DataOnDa::Chunk`].
+    pub const CHUNK_TAG: u8 = 2;
+    /// Borsh discriminant for [`DataOnDa::BatchProofMethodId`].
+    pub const BATCH_PROOF_METHOD_ID_TAG: u8 = 3;
+    /// Borsh discriminant for [`DataOnDa::SequencerCommitment`].
+    pub const SEQUENCER_COMMITMENT_TAG: u8 = 4;
+
+    /// Length of the `u32` borsh length prefix.
+    const VEC_LEN_PREFIX_LEN: usize = 4;
+
+    /// Returns `false` if `data` is a [`DataOnDa`] variant carrying a `Vec<u8>` whose declared
+    /// length is larger than the number of bytes actually available to back it
+    ///
+    /// `Complete` and `Chunk` are the only variants that can be used this way. `Vec<u8>` is the
+    /// only payload borsh sizes its allocation from.
+    pub fn validate_data_len(data: &[u8]) -> bool {
+        let Some((&discriminant, payload)) = data.split_first() else {
+            return true;
+        };
+
+        if discriminant != Self::COMPLETE_TAG && discriminant != Self::CHUNK_TAG {
+            return true;
+        }
+
+        let Some((declared_len, body)) =
+            payload.split_first_chunk::<{ Self::VEC_LEN_PREFIX_LEN }>()
+        else {
+            return true;
+        };
+
+        u64::from(u32::from_le_bytes(*declared_len)) <= body.len() as u64
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use borsh::BorshDeserialize;
+
+    use super::{
+        BatchProofMethodId, BatchProofMethodIdBody, DataOnDa, SequencerCommitment,
+        SECURITY_COUNCIL_SIGNATURE_SIZE, SECURITY_COUNCIL_SIGNATURE_THRESHOLD,
+    };
+
+    /// Borsh encodes enum variants as a single u8 leading discriminant in declaration
+    /// order. If anyone reorders or inserts a variant, this guards against a silent
+    /// skew between the constants and the on-the-wire encoding.
+    #[test]
+    fn data_on_da_tags_match_borsh_encoding() {
+        let cases: [(u8, DataOnDa); 5] = [
+            (DataOnDa::COMPLETE_TAG, DataOnDa::Complete(Vec::new())),
+            (
+                DataOnDa::AGGREGATE_TAG,
+                DataOnDa::Aggregate(Vec::new(), Vec::new()),
+            ),
+            (DataOnDa::CHUNK_TAG, DataOnDa::Chunk(Vec::new())),
+            (
+                DataOnDa::BATCH_PROOF_METHOD_ID_TAG,
+                DataOnDa::BatchProofMethodId(BatchProofMethodId {
+                    body: BatchProofMethodIdBody {
+                        method_id: [0; 8],
+                        activation_l2_height: 0,
+                        chain_id: 0,
+                    },
+                    signatures_with_index: [([0u8; SECURITY_COUNCIL_SIGNATURE_SIZE], 0);
+                        SECURITY_COUNCIL_SIGNATURE_THRESHOLD],
+                }),
+            ),
+            (
+                DataOnDa::SEQUENCER_COMMITMENT_TAG,
+                DataOnDa::SequencerCommitment(SequencerCommitment {
+                    merkle_root: [0; 32],
+                    index: 0,
+                    l2_end_block_number: 0,
+                }),
+            ),
+        ];
+
+        for (tag, data) in cases {
+            let bytes = borsh::to_vec(&data).expect("DataOnDa should serialize");
+            assert_eq!(
+                bytes.first().copied(),
+                Some(tag),
+                "leading byte mismatch for {data:?}"
+            );
+            let decoded = DataOnDa::try_from_slice(&bytes).expect("DataOnDa should round-trip");
+            assert_eq!(decoded, data, "round-trip mismatch for {data:?}");
+
+            assert!(
+                DataOnDa::validate_data_len(&bytes),
+                "rejected a well-formed {data:?}"
+            );
+        }
+    }
+
+    /// Malicious body: a `DataOnDa::Chunk` header declaring a ~2 GiB vector
+    /// with none of the bytes actually present.
+    const POISON_CHUNK_BODY: [u8; 5] = [DataOnDa::CHUNK_TAG, 0xff, 0xff, 0xff, 0x7f];
+    /// Malicious body: a `DataOnDa::Complete` header declaring a ~2 GiB vector
+    /// with none of the bytes actually present.
+    const POISON_COMPLETE_BODY: [u8; 5] = [DataOnDa::COMPLETE_TAG, 0xff, 0xff, 0xff, 0x7f];
+
+    #[test]
+    fn rejects_poisoned_chunk_header() {
+        assert!(!DataOnDa::validate_data_len(&POISON_CHUNK_BODY));
+    }
+
+    /// A complete proof is the same `Vec<u8>` primitive as a chunk, and its sender is only
+    /// checked after parsing, so make sure it's rejected as well
+    #[test]
+    fn rejects_poisoned_complete_header() {
+        assert!(!DataOnDa::validate_data_len(&POISON_COMPLETE_BODY));
+    }
+
+    /// Nothing the check rejects would have parsed anyway, so skipping it early cannot change
+    /// which blobs the circuit acts on. This makes sure native would reject the poisoned tx via borsh.
+    #[test]
+    fn rejections_would_have_failed_borsh_too() {
+        let poisoned: [&[u8]; 2] = [&POISON_CHUNK_BODY, &POISON_COMPLETE_BODY];
+
+        for data in poisoned {
+            assert!(!DataOnDa::validate_data_len(data));
+            assert!(DataOnDa::try_from_slice(data).is_err());
+        }
+    }
+
+    #[test]
+    fn borsh_aggregate_validation() {
+        // An `Aggregate` declaring a high wtxid count is deliberately not caught here:
+        // borsh's `hint::cautious` caps its pre-allocation at 4 KiB, so it is no OOM lever.
+        let poisoned_aggregate = [0x01, 0xff, 0xff, 0xff, 0x7f];
+        assert!(DataOnDa::validate_data_len(&poisoned_aggregate));
+        assert!(DataOnDa::try_from_slice(&poisoned_aggregate).is_err());
+
+        assert!(DataOnDa::validate_data_len(&[0x03, 0xff, 0xff]));
+        assert!(DataOnDa::validate_data_len(&[0x04, 0xff, 0xff]));
+
+        assert!(DataOnDa::validate_data_len(&[0xff, 0xff, 0xff]));
+        assert!(DataOnDa::validate_data_len(&[0x02, 0xff, 0xff]));
+        assert!(DataOnDa::validate_data_len(&[]));
+    }
 }
 
 /// A specification for the types used by a DA layer.
@@ -220,6 +367,8 @@ pub trait VerifiableShortHeaderProof {
 #[derive(Debug, PartialEq, Eq)]
 /// Error that can arise from short form header proof
 pub enum ShortHeaderProofVerificationError {
+    /// Supplied coinbase transaction is not a valid Bitcoin coinbase transaction
+    InvalidCoinbaseTransaction,
     /// Wrong coinbase was supplied
     InvalidCoinbaseMerkleProof,
     /// Tx commitment in `DaSpec::BlockHeader` was wrong
@@ -408,6 +557,7 @@ pub trait BlockHeaderTrait:
     fn bits(&self) -> u32;
 
     /// Coinbase txid merkle proof height in the block.
+    #[cfg(feature = "native")]
     fn coinbase_txid_merkle_proof_height(&self) -> u64;
 }
 

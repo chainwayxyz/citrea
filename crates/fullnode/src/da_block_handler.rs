@@ -16,8 +16,9 @@ use citrea_common::utils::{
     exceeded_stop_height, get_tangerine_activation_height_non_zero, shutdown_requested,
 };
 use citrea_common::StartVariant;
-use citrea_primitives::forks::fork_from_block_number;
+use citrea_primitives::forks::proof_guest_spec_id;
 use citrea_primitives::network_to_dev_mode;
+use citrea_primitives::risc0_cutoff::risc0_cutoff;
 use reth_tasks::shutdown::GracefulShutdown;
 use rs_merkle::algorithms::Sha256;
 use rs_merkle::MerkleTree;
@@ -89,6 +90,8 @@ where
     backup_manager: Arc<BackupManager>,
     /// Citrea network the node is operating on
     network: Network,
+    /// Inclusive L1 publication height through which the prover's DA signature is trusted.
+    risc0_cutoff_l1_height: Option<u64>,
     /// Optional L1 height at which to stop syncing (debug/testing)
     stop_at_l1_height: Option<u64>,
 }
@@ -132,6 +135,7 @@ where
             queued_l1_blocks: Arc::new(Mutex::new(VecDeque::new())),
             backup_manager,
             network,
+            risc0_cutoff_l1_height: risc0_cutoff(network).map(|cutoff| cutoff.l1_height()),
             stop_at_l1_height,
         }
     }
@@ -599,13 +603,12 @@ where
     /// This method handles the verification and processing of zero-knowledge proofs that validate
     /// L2 block execution. Each proof demonstrates the correctness of state transitions for a batch
     /// of L2 blocks. The method:
-    /// 1. Extracts and validates the proof using the appropriate ZKVM
-    /// 2. Verifies the proof against the correct fork's code commitment
-    /// 3. Processes the proof using Tangerine-specific validation logic
+    /// 1. Extracts historical RISC0 outputs, trusting the prover's DA signature through L0,
+    ///    or extracts and verifies later proofs against Pomelo's code commitment.
+    /// 2. Processes the output using Tangerine-specific validation logic.
     ///
-    /// The proofs provide cryptographic assurance that the L2 blocks were executed correctly
-    /// according to the rollup's rules. This is a critical part of the rollup's security model,
-    /// ensuring that invalid state transitions cannot be committed.
+    /// DA extraction authenticates proofs before this method is called. Pending retries
+    /// use the original publication height to select the same verification policy.
     ///
     /// # Arguments
     /// * `current_l1_block_height` - Current L1 block being processed
@@ -631,9 +634,45 @@ where
         );
         tracing::trace!("ZK proof: {:?}", proof);
 
-        // Extract and verify the proof using the appropriate ZKVM
-        let Ok(batch_proof_output) = Vm::extract_output::<BatchProofCircuitOutput>(&proof) else {
-            return Ok(ProcessingResult::Discarded);
+        let batch_proof_output = match self.risc0_cutoff_l1_height {
+            // Proofs up to L0 are RISC0 proofs, they are accepted on the batch prover's DA signature
+            // To verify them, run v2 up to L0 and then update to v3
+            Some(l0) if found_in_l1_block_height <= l0 => {
+                let Some(batch_proof_output) = crate::risc0_proof::extract_batch_proof_output(
+                    &proof,
+                    network_to_dev_mode(self.network),
+                ) else {
+                    tracing::warn!(
+                        "Discarding RISC0 proof at L1 height {found_in_l1_block_height}: its receipt can't be read"
+                    );
+                    return Ok(ProcessingResult::Discarded);
+                };
+                batch_proof_output
+            }
+            _ => {
+                // Extract and verify the proof using the appropriate ZKVM
+                let Ok(batch_proof_output) = Vm::extract_output::<BatchProofCircuitOutput>(&proof)
+                else {
+                    return Ok(ProcessingResult::Discarded);
+                };
+
+                let code_commitment = self
+                    .code_commitments_by_spec
+                    .get(&proof_guest_spec_id())
+                    .expect("Proof guest spec must have a code commitment");
+
+                // Verify the proof against the code commitment
+                if Vm::verify(
+                    proof.as_slice(),
+                    code_commitment,
+                    network_to_dev_mode(self.network),
+                )
+                .is_err()
+                {
+                    return Ok(ProcessingResult::Discarded);
+                }
+                batch_proof_output
+            }
         };
 
         tracing::info!(
@@ -642,24 +681,6 @@ where
             batch_proof_output.sequencer_commitment_index_range().0,
             batch_proof_output.sequencer_commitment_index_range().1
         );
-
-        // Get the code commitment for the appropriate fork
-        let spec_id = fork_from_block_number(batch_proof_output.last_l2_height()).spec_id;
-        let code_commitment = self
-            .code_commitments_by_spec
-            .get(&spec_id)
-            .expect("Proof public input must contain valid spec id");
-
-        // Verify the proof against the code commitment
-        if Vm::verify(
-            proof.as_slice(),
-            code_commitment,
-            network_to_dev_mode(self.network),
-        )
-        .is_err()
-        {
-            return Ok(ProcessingResult::Discarded);
-        }
 
         // Process the verified proof using Tangerine-specific logic
         self.process_tangerine_zk_proof(
@@ -706,6 +727,35 @@ where
 
         let sequencer_commitment_index_range =
             batch_proof_output.sequencer_commitment_index_range();
+        let commitments_hashes = batch_proof_output.sequencer_commitment_hashes();
+
+        // The proof's commitment index range must be ascending and cover exactly as many
+        // commitments as it carries hashes. The light client circuit enforces both
+        // (`crates/light-client-prover/src/circuit/mod.rs`); without the same checks here the
+        // zip below would silently drop trailing hashes, so the full node would accept - and
+        // mark proven - a proof the light client rejects.
+        if sequencer_commitment_index_range.1 < sequencer_commitment_index_range.0 {
+            return Err(
+                SkippableError::Proof(ProofError::InvalidCommitmentIndexRange(
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1,
+                ))
+                .into(),
+            );
+        }
+        let index_range_len =
+            (sequencer_commitment_index_range.1 - sequencer_commitment_index_range.0) as usize + 1;
+        if index_range_len != commitments_hashes.len() {
+            return Err(
+                SkippableError::Proof(ProofError::CommitmentIndexRangeHashCountMismatch(
+                    sequencer_commitment_index_range.0,
+                    sequencer_commitment_index_range.1,
+                    index_range_len,
+                    commitments_hashes.len(),
+                ))
+                .into(),
+            );
+        }
 
         let proven_height = self
             .ledger_db
@@ -749,16 +799,30 @@ where
             None => get_tangerine_activation_height_non_zero() - 1,
         };
 
-        let commitments_hashes = batch_proof_output.sequencer_commitment_hashes();
+        let mut last_commitment_l2_end_height = None;
         for (index, expected_hash) in (sequencer_commitment_index_range.0
             ..=sequencer_commitment_index_range.1)
             .zip(commitments_hashes)
         {
-            self.verify_sequencer_commitment_hash_by_index(
+            last_commitment_l2_end_height = Some(self.verify_sequencer_commitment_hash_by_index(
                 index,
                 expected_hash,
                 &mut proof_is_pending,
-            )?;
+            )?);
+        }
+
+        let last_commitment_l2_end_height =
+            last_commitment_l2_end_height.expect("Sequencer commitment index range is non-empty");
+
+        // The proof's terminal L2 height must be the L2 end height of the last commitment it
+        // covers
+        if end_l2_height != last_commitment_l2_end_height {
+            return Err(SkippableError::Proof(ProofError::LastL2HeightMismatch(
+                end_l2_height,
+                sequencer_commitment_index_range.1,
+                last_commitment_l2_end_height,
+            ))
+            .into());
         }
 
         if proof_is_pending {
@@ -792,7 +856,7 @@ where
                     )
                 })?;
 
-        if start_state_root.as_ref() != initial_state_root.as_ref() {
+        if start_state_root != initial_state_root {
             return Err(SkippableError::Proof(ProofError::PreStateRootMismatch(
                 hex::encode(initial_state_root),
                 hex::encode(start_state_root),
@@ -1040,5 +1104,666 @@ where
             );
         }
         Ok(sequencer_commitment.l2_end_block_number)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use citrea_common::backup::BackupManager;
+    use citrea_common::NodeType;
+    use citrea_primitives::forks::FORKS;
+    use sov_db::ledger_db::migrations::LedgerMigration;
+    use sov_db::ledger_db::{LedgerDB, SharedLedgerOps};
+    use sov_db::rocks_db_config::RocksdbConfig;
+    use sov_db::schema::tables::FULL_NODE_LEDGER_TABLES;
+    use sov_mock_da::{MockAddress, MockDaService};
+    use sov_mock_zkvm::MockZkvm;
+    use sov_modules_api::fork::Fork;
+    use sov_modules_api::L2Block;
+    use sov_rollup_interface::block::{L2Header, SignedL2Header};
+    use sov_rollup_interface::zk::batch_proof::output::v3::BatchProofCircuitOutputV3;
+    use tempfile::TempDir;
+
+    use super::*;
+    use crate::db_migrations::RescanL1AfterRisc0Cutoff;
+
+    /// Forks used by the tests in this module. Mirrors `NIGHTLY_FORKS`.
+    const TEST_FORKS: &[Fork] = &[Fork::new(SpecId::Pomelo, 0)];
+
+    /// L1 hash the crafted proof outputs claim to end on.
+    const L1_HASH: [u8; 32] = [0xaa; 32];
+    /// L1 height at which the proof is found and processed.
+    const L1_HEIGHT: u64 = 42;
+
+    /// A full node ledger DB plus the L1 block handler operating on it.
+    struct TestNode {
+        /// Handler under test.
+        handler: L1BlockHandler<MockZkvm, MockDaService, LedgerDB>,
+        /// Handle on the same ledger DB the handler writes to.
+        ledger_db: LedgerDB,
+        /// Keeps the temporary directory backing the DBs alive.
+        _tmpdir: TempDir,
+    }
+
+    /// Builds an [`L1BlockHandler`] backed by a temporary full node ledger DB.
+    fn setup() -> TestNode {
+        let _ = FORKS.set(TEST_FORKS);
+
+        let tmpdir = TempDir::new().unwrap();
+        let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(
+            tmpdir.path(),
+            None,
+            Some(
+                FULL_NODE_LEDGER_TABLES
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect(),
+            ),
+        ))
+        .unwrap();
+        let da_service = Arc::new(MockDaService::new(
+            MockAddress::from([1; 32]),
+            tmpdir.path(),
+        ));
+
+        let handler = L1BlockHandler::new(
+            Network::Nightly,
+            ledger_db.clone(),
+            da_service,
+            vec![1; 33],
+            vec![2; 33],
+            HashMap::new(),
+            Arc::new(Mutex::new(L1BlockCache::new())),
+            Arc::new(BackupManager::new(NodeType::FullNode, None, None)),
+            None,
+        );
+
+        TestNode {
+            handler,
+            ledger_db,
+            _tmpdir: tmpdir,
+        }
+    }
+
+    /// Historical receipt with a readable journal but no valid ZK seal.
+    fn historical_risc0_proof() -> Proof {
+        hex::decode(include_str!("../test_data/risc0-groth16-receipt.hex").trim()).unwrap()
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn historical_risc0_proofs_trust_signature_but_still_validate_output() {
+        let TestNode {
+            mut handler,
+            _tmpdir,
+            ..
+        } = setup();
+        handler.risc0_cutoff_l1_height = Some(L1_HEIGHT);
+
+        for found_at in [L1_HEIGHT - 1, L1_HEIGHT] {
+            for source in [ProofSource::FromL1, ProofSource::FromPendingRetry] {
+                let result = handler
+                    .process_zk_proof(L1_HEIGHT + 1, found_at, historical_risc0_proof(), source)
+                    .await;
+                // Reaching output validation proves that the historical receipt was
+                // extracted without VM verification, even when retried after L0.
+                assert!(matches!(
+                    result,
+                    Err(ProcessingError::SkippableError(SkippableError::Proof(
+                        ProofError::UnknownL1Hash
+                    )))
+                ));
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn risc0_proofs_are_discarded_after_cutoff_or_without_one() {
+        let TestNode {
+            mut handler,
+            _tmpdir,
+            ..
+        } = setup();
+        for (cutoff, found_at) in [(Some(L1_HEIGHT), L1_HEIGHT + 1), (None, L1_HEIGHT)] {
+            handler.risc0_cutoff_l1_height = cutoff;
+            let result = handler
+                .process_zk_proof(
+                    L1_HEIGHT + 1,
+                    found_at,
+                    historical_risc0_proof(),
+                    ProofSource::FromL1,
+                )
+                .await
+                .unwrap();
+            assert!(matches!(result, ProcessingResult::Discarded));
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn post_cutoff_proofs_still_require_vm_verification() {
+        let TestNode {
+            mut handler,
+            _tmpdir,
+            ..
+        } = setup();
+        handler
+            .code_commitments_by_spec
+            .insert(SpecId::Pomelo, sov_mock_zkvm::MockCodeCommitment([0; 32]));
+        let output =
+            crate::risc0_proof::extract_batch_proof_output(&historical_risc0_proof(), false)
+                .unwrap();
+        // This has the mock host's readable output format, but is not a valid proof.
+        let proof = borsh::to_vec(&(borsh::to_vec(&output).unwrap(), false)).unwrap();
+        assert!(<MockZkvm as ZkvmHost>::extract_output::<BatchProofCircuitOutput>(&proof).is_ok());
+
+        for (cutoff, found_at) in [(Some(L1_HEIGHT), L1_HEIGHT + 1), (None, L1_HEIGHT)] {
+            handler.risc0_cutoff_l1_height = cutoff;
+            let result = handler
+                .process_zk_proof(L1_HEIGHT + 1, found_at, proof.clone(), ProofSource::FromL1)
+                .await
+                .unwrap();
+            assert!(matches!(result, ProcessingResult::Discarded));
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn malformed_historical_risc0_proofs_are_discarded() {
+        let TestNode {
+            mut handler,
+            _tmpdir,
+            ..
+        } = setup();
+        handler.risc0_cutoff_l1_height = Some(L1_HEIGHT);
+        let mut proof = historical_risc0_proof();
+        proof.pop();
+        let result = handler
+            .process_zk_proof(L1_HEIGHT, L1_HEIGHT, proof, ProofSource::FromL1)
+            .await
+            .unwrap();
+        assert!(matches!(result, ProcessingResult::Discarded));
+    }
+
+    /// Historical receipt like [`historical_risc0_proof`] whose journal is `output`.
+    fn risc0_proof_with_output(output: &BatchProofCircuitOutput) -> Proof {
+        let receipt = historical_risc0_proof();
+        // bincode encodes the journal with its length as u64
+        let encode = |journal: Vec<u8>| [(journal.len() as u64).to_le_bytes().to_vec(), journal];
+        let fixture_output =
+            crate::risc0_proof::extract_batch_proof_output(&receipt, false).unwrap();
+        let old = encode(borsh::to_vec(&fixture_output).unwrap()).concat();
+        let at = receipt
+            .windows(old.len())
+            .position(|window| window == old)
+            .unwrap();
+        let new = encode(borsh::to_vec(output).unwrap()).concat();
+        let proof = [&receipt[..at], &new, &receipt[at + old.len()..]].concat();
+        let extracted = crate::risc0_proof::extract_batch_proof_output(&proof, false).unwrap();
+        assert_eq!(
+            borsh::to_vec(&extracted).unwrap(),
+            borsh::to_vec(output).unwrap()
+        );
+        proof
+    }
+
+    /// RISC0 proofs published up to L0 advance the proven height on the batch prover's DA
+    /// signature, but only with a valid output. RISC0 proving stops at P0, and a RISC0 proof
+    /// published after L0 anyway is discarded without stalling the full node. SP1 proofs
+    /// continue from P0.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn proven_height_continues_from_risc0_proofs_to_sp1_proofs() {
+        let TestNode {
+            mut handler,
+            ledger_db,
+            _tmpdir,
+        } = setup();
+        handler.risc0_cutoff_l1_height = Some(L1_HEIGHT);
+        let (commitment_1, commitment_2) = seed_canonical_chain(&ledger_db);
+        let commitment_3 = commitment(3, 3);
+        put_l2_block(&ledger_db, 3);
+        ledger_db.put_commitment_by_index(&commitment_3).unwrap();
+        ledger_db
+            .set_l2_height_status(
+                L2HeightStatus::Committed,
+                L1_HEIGHT - 1,
+                L2HeightAndIndex {
+                    height: 3,
+                    commitment_index: 3,
+                },
+            )
+            .unwrap();
+        let proven = || {
+            let proven = ledger_db
+                .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
+                .unwrap()
+                .unwrap();
+            (proven.height, proven.commitment_index)
+        };
+
+        let output_2 = proof_output(
+            (2, 2),
+            vec![commitment_2.serialize_and_calculate_sha_256()],
+            2,
+            &commitment_1,
+        );
+        let output_3 = proof_output(
+            (3, 3),
+            vec![commitment_3.serialize_and_calculate_sha_256()],
+            3,
+            &commitment_2,
+        );
+        let BatchProofCircuitOutput::V3(mut wrong_pre_state) = proof_output(
+            (2, 2),
+            vec![commitment_2.serialize_and_calculate_sha_256()],
+            2,
+            &commitment_1,
+        );
+        wrong_pre_state.state_roots[0] = [0xbb; 32];
+        let wrong_pre_state = BatchProofCircuitOutput::V3(wrong_pre_state);
+
+        // A historical proof with an output that doesn't match the chain is rejected
+        let result = handler
+            .process_zk_proof(
+                L1_HEIGHT,
+                L1_HEIGHT,
+                risc0_proof_with_output(&wrong_pre_state),
+                ProofSource::FromL1,
+            )
+            .await;
+        assert!(matches!(
+            result,
+            Err(ProcessingError::SkippableError(SkippableError::Proof(
+                ProofError::PreStateRootMismatch(..)
+            )))
+        ));
+        assert_eq!(proven(), (1, 1));
+
+        // A historical proof at L0 is accepted without VM verification
+        let result = handler
+            .process_zk_proof(
+                L1_HEIGHT,
+                L1_HEIGHT,
+                risc0_proof_with_output(&output_2),
+                ProofSource::FromL1,
+            )
+            .await
+            .unwrap();
+        assert!(matches!(result, ProcessingResult::Success));
+        assert_eq!(proven(), (2, 2));
+
+        // A RISC0 proof of the next commitment, published after L0 anyway, is discarded
+        let result = handler
+            .process_zk_proof(
+                L1_HEIGHT + 1,
+                L1_HEIGHT + 1,
+                risc0_proof_with_output(&output_3),
+                ProofSource::FromL1,
+            )
+            .await
+            .unwrap();
+        assert!(matches!(result, ProcessingResult::Discarded));
+        assert_eq!(proven(), (2, 2));
+
+        // The verified SP1 proof of the same commitment continues from P0
+        let result = handler
+            .process_tangerine_zk_proof(
+                L1_HEIGHT + 1,
+                L1_HEIGHT + 1,
+                state_root(commitment_2.l2_end_block_number),
+                vec![],
+                output_3,
+                ProofSource::FromL1,
+            )
+            .await
+            .unwrap();
+        assert!(matches!(result, ProcessingResult::Success));
+        assert_eq!(proven(), (3, 3));
+    }
+
+    /// Writes `status` at `l1_height` for commitment `index`, which ends at L2 height `index`.
+    fn set_status(ledger_db: &LedgerDB, status: L2HeightStatus, l1_height: u64, index: u32) {
+        ledger_db
+            .set_l2_height_status(
+                status,
+                l1_height,
+                L2HeightAndIndex {
+                    height: index.into(),
+                    commitment_index: index,
+                },
+            )
+            .unwrap();
+    }
+
+    /// The status the node reads, as L2 height and commitment index.
+    fn highest(ledger_db: &LedgerDB, status: L2HeightStatus) -> (u64, u32) {
+        let row = ledger_db
+            .get_highest_l2_height_for_status(status, None)
+            .unwrap()
+            .unwrap();
+        (row.height, row.commitment_index)
+    }
+
+    /// v2 committed commitment 2 late, while processing `v2_last`, and stopped with commitment
+    /// 3 pending until its L2 blocks were synced. The rescan from L0 commits it at an earlier L1
+    /// height, and v2's row doesn't hide it. Otherwise a proof covering commitment 3 would put
+    /// the proven height above the committed one, and the next proof would panic.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn rescan_from_l0_commits_past_late_v2_committed_row() {
+        let TestNode {
+            handler,
+            ledger_db,
+            _tmpdir,
+        } = setup();
+        seed_canonical_chain(&ledger_db);
+        set_status(&ledger_db, L2HeightStatus::Committed, L1_HEIGHT + 10, 2);
+
+        let commitment_3 = commitment(3, 3);
+        put_l2_block(&ledger_db, 3);
+        let result = handler
+            .process_sequencer_commitment(L1_HEIGHT + 1, L1_HEIGHT + 1, &commitment_3)
+            .await
+            .unwrap();
+        assert!(matches!(result, ProcessingResult::Success));
+        assert_eq!(highest(&ledger_db, L2HeightStatus::Committed), (3, 3));
+    }
+
+    /// The stall from the PR 81 thread, on a v2 node upgraded late. v2 accepted the proof of
+    /// commitment 2, published up to L0, only while processing `v2_last`, and walked past the
+    /// SP1 proofs after it. The migration moves the scan back to L0 and keeps that row, and the
+    /// SP1 proofs the rescan reads at earlier L1 heights advance the proven height past it.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn rescan_from_l0_advances_past_late_v2_proven_row() {
+        let TestNode {
+            handler,
+            ledger_db,
+            _tmpdir,
+        } = setup();
+        let (_, commitment_2) = seed_canonical_chain(&ledger_db);
+        let commitment_3 = commitment(3, 3);
+        let commitment_4 = commitment(4, 4);
+        for commitment in [&commitment_3, &commitment_4] {
+            put_l2_block(&ledger_db, commitment.l2_end_block_number);
+            ledger_db.put_commitment_by_index(commitment).unwrap();
+        }
+        let l0 = L1_HEIGHT;
+        let v2_last = l0 + 10;
+        set_status(&ledger_db, L2HeightStatus::Committed, v2_last, 4);
+        set_status(&ledger_db, L2HeightStatus::Proven, v2_last, 2);
+        ledger_db
+            .set_last_scanned_l1_height(SlotNumber(v2_last + 10))
+            .unwrap();
+
+        RescanL1AfterRisc0Cutoff { l0 }
+            .execute(Arc::new(ledger_db.clone()), &mut Vec::new())
+            .unwrap();
+        assert_eq!(
+            ledger_db
+                .get_last_scanned_l1_height()
+                .unwrap()
+                .map(|height| height.0),
+            Some(l0)
+        );
+        assert_eq!(highest(&ledger_db, L2HeightStatus::Proven), (2, 2));
+
+        for (l1_height, previous, commitment) in [
+            (l0 + 1, &commitment_2, &commitment_3),
+            (l0 + 2, &commitment_3, &commitment_4),
+        ] {
+            let output = proof_output(
+                (commitment.index, commitment.index),
+                vec![commitment.serialize_and_calculate_sha_256()],
+                commitment.l2_end_block_number,
+                previous,
+            );
+            let result = handler
+                .process_tangerine_zk_proof(
+                    l1_height,
+                    l1_height,
+                    state_root(previous.l2_end_block_number),
+                    vec![],
+                    output,
+                    ProofSource::FromL1,
+                )
+                .await
+                .unwrap();
+            assert!(matches!(result, ProcessingResult::Success));
+            assert_eq!(
+                highest(&ledger_db, L2HeightStatus::Proven),
+                (commitment.l2_end_block_number, commitment.index)
+            );
+        }
+    }
+
+    /// Builds a sequencer commitment with a deterministic merkle root.
+    fn commitment(index: u32, l2_end_block_number: u64) -> SequencerCommitment {
+        SequencerCommitment {
+            merkle_root: [index as u8; 32],
+            index,
+            l2_end_block_number,
+        }
+    }
+
+    /// Deterministic state root for a given L2 height.
+    fn state_root(height: u64) -> [u8; 32] {
+        let mut root = [0u8; 32];
+        root[0] = height as u8;
+        root
+    }
+
+    /// Stores an L2 block carrying [`state_root`] for `height`.
+    fn put_l2_block(ledger_db: &LedgerDB, height: u64) {
+        let l2_block = L2Block::new(
+            SignedL2Header::new(
+                L2Header::new(height, [0; 32], state_root(height), 0, [0; 32], 0),
+                [height as u8; 32],
+                vec![],
+            ),
+            vec![],
+        );
+        ledger_db.commit_l2_block(l2_block, vec![], None).unwrap();
+    }
+
+    /// Builds a V3 batch proof output for the given commitments.
+    ///
+    /// `hashes` and `index_range` are passed separately so that tests can craft
+    /// outputs an honest guest would never produce.
+    fn proof_output(
+        index_range: (u32, u32),
+        hashes: Vec<[u8; 32]>,
+        last_l2_height: u64,
+        previous: &SequencerCommitment,
+    ) -> BatchProofCircuitOutput {
+        let mut state_roots = vec![state_root(previous.l2_end_block_number)];
+        state_roots.extend((0..hashes.len()).map(|i| state_root(100 + i as u64)));
+
+        BatchProofCircuitOutput::V3(BatchProofCircuitOutputV3 {
+            state_roots,
+            final_l2_block_hash: [0; 32],
+            state_diff: Default::default(),
+            last_l2_height,
+            sequencer_commitment_hashes: hashes,
+            sequencer_commitment_index_range: index_range,
+            last_l1_hash_on_bitcoin_light_client_contract: L1_HASH,
+            previous_commitment_index: Some(previous.index),
+            previous_commitment_hash: Some(previous.serialize_and_calculate_sha_256()),
+        })
+    }
+
+    /// Seeds the ledger with commitments 1 (ending at L2 height 1) and 2 (ending
+    /// at L2 height 2), their L2 blocks, and the matching finality statuses:
+    /// commitment 1 proven, commitment 2 committed but not yet proven.
+    fn seed_canonical_chain(ledger_db: &LedgerDB) -> (SequencerCommitment, SequencerCommitment) {
+        let commitment_1 = commitment(1, 1);
+        let commitment_2 = commitment(2, 2);
+
+        for height in 1..=2 {
+            put_l2_block(ledger_db, height);
+        }
+        ledger_db.put_commitment_by_index(&commitment_1).unwrap();
+        ledger_db.put_commitment_by_index(&commitment_2).unwrap();
+        ledger_db.set_l1_height_of_l1_hash(L1_HASH, 1).unwrap();
+
+        ledger_db
+            .set_l2_height_status(
+                L2HeightStatus::Proven,
+                L1_HEIGHT - 1,
+                L2HeightAndIndex {
+                    height: 1,
+                    commitment_index: 1,
+                },
+            )
+            .unwrap();
+        ledger_db
+            .set_l2_height_status(
+                L2HeightStatus::Committed,
+                L1_HEIGHT - 1,
+                L2HeightAndIndex {
+                    height: 2,
+                    commitment_index: 2,
+                },
+            )
+            .unwrap();
+
+        (commitment_1, commitment_2)
+    }
+
+    /// Sanity check for the harness: an honest proof covering exactly
+    /// commitment 2 is accepted and advances the proven height to 2.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn honest_proof_advances_proven_height() {
+        let TestNode {
+            handler, ledger_db, ..
+        } = setup();
+        let (commitment_1, commitment_2) = seed_canonical_chain(&ledger_db);
+
+        let output = proof_output(
+            (2, 2),
+            vec![commitment_2.serialize_and_calculate_sha_256()],
+            commitment_2.l2_end_block_number,
+            &commitment_1,
+        );
+
+        let result = handler
+            .process_tangerine_zk_proof(
+                L1_HEIGHT,
+                L1_HEIGHT,
+                state_root(commitment_1.l2_end_block_number),
+                vec![],
+                output,
+                ProofSource::FromL1,
+            )
+            .await
+            .expect("honest proof must be accepted");
+        assert!(matches!(result, ProcessingResult::Success));
+
+        let proven = ledger_db
+            .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(proven.height, 2);
+        assert_eq!(proven.commitment_index, 2);
+    }
+
+    /// A batch proof whose commitment hash count exceeds the cardinality of its
+    /// inclusive index range must be rejected.
+    ///
+    /// The guest builds the public index range from the first and last input
+    /// commitments, so a prover feeding `{index: 2, end: 2}` (canonical) plus an
+    /// extra `{index: 2, end: 3}` produces the range `(2, 2)` with two hashes.
+    /// The light client circuit rejects this shape
+    /// (`crates/light-client-prover/src/circuit/mod.rs`), but the full node zips
+    /// the range against the hashes and silently drops the trailing hash.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn proof_with_more_hashes_than_index_range_is_rejected() {
+        let TestNode {
+            handler, ledger_db, ..
+        } = setup();
+        let (commitment_1, commitment_2) = seed_canonical_chain(&ledger_db);
+
+        // The extra commitment the malicious prover appends. It is never written
+        // to the ledger DB: only its hash rides along in the proof output.
+        let extra = commitment(2, 3);
+
+        let output = proof_output(
+            (2, 2),
+            vec![
+                commitment_2.serialize_and_calculate_sha_256(),
+                extra.serialize_and_calculate_sha_256(),
+            ],
+            extra.l2_end_block_number,
+            &commitment_1,
+        );
+
+        let result = handler
+            .process_tangerine_zk_proof(
+                L1_HEIGHT,
+                L1_HEIGHT,
+                state_root(commitment_1.l2_end_block_number),
+                vec![],
+                output,
+                ProofSource::FromL1,
+            )
+            .await;
+
+        assert!(
+            result.is_err(),
+            "proof output with 2 hashes over the inclusive range (2, 2) must not be accepted"
+        );
+    }
+
+    /// Even if the above shape is accepted, the recorded proven height must never
+    /// exceed the L2 end height of the last commitment the proof actually
+    /// covers, nor the current committed height.
+    ///
+    /// Recording a higher proven height splits the full node from the light
+    /// client (which rejects the proof) and reports `finalized` blocks that no
+    /// verified proof covers. It also arms the
+    /// `proven_height > committed_height` panic on the next proof.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn duplicate_index_proof_does_not_advance_proven_height_past_committed() {
+        let TestNode {
+            handler, ledger_db, ..
+        } = setup();
+        let (commitment_1, commitment_2) = seed_canonical_chain(&ledger_db);
+
+        let extra = commitment(2, 3);
+        let output = proof_output(
+            (2, 2),
+            vec![
+                commitment_2.serialize_and_calculate_sha_256(),
+                extra.serialize_and_calculate_sha_256(),
+            ],
+            extra.l2_end_block_number,
+            &commitment_1,
+        );
+
+        let _ = handler
+            .process_tangerine_zk_proof(
+                L1_HEIGHT,
+                L1_HEIGHT,
+                state_root(commitment_1.l2_end_block_number),
+                vec![],
+                output,
+                ProofSource::FromL1,
+            )
+            .await;
+
+        let proven = ledger_db
+            .get_highest_l2_height_for_status(L2HeightStatus::Proven, None)
+            .unwrap()
+            .unwrap();
+        let committed = ledger_db
+            .get_highest_l2_height_for_status(L2HeightStatus::Committed, None)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            commitment_2.l2_end_block_number, 2,
+            "canonical commitment 2 ends at L2 height 2"
+        );
+        assert!(
+            proven.height <= committed.height,
+            "proven height {} must not exceed committed height {}",
+            proven.height,
+            committed.height
+        );
     }
 }

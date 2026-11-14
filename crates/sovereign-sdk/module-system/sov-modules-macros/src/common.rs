@@ -219,14 +219,14 @@ pub(crate) fn get_serialization_attrs(
             &tokens,
             format!(
                 "Serialization attributes must contain both '{}' and '{}', but contains '{:?}'",
-                SERIALIZE, DESERIALIZE, &attributes
+                SERIALIZE, DESERIALIZE, attributes
             ),
         ));
     } else if has_other {
         return Err(syn::Error::new_spanned(
             &tokens,
             format!("Serialization attributes can not contain attributes that are not '{}' and '{}', but contains: '{:?}'", 
-                SERIALIZE, DESERIALIZE, &attributes.iter().filter(|a| !a.contains(SERIALIZE) && !a.contains(DESERIALIZE)).collect::<Vec<_>>()),
+                SERIALIZE, DESERIALIZE, attributes.iter().filter(|a| !a.contains(SERIALIZE) && !a.contains(DESERIALIZE)).collect::<Vec<_>>()),
         ));
     }
 

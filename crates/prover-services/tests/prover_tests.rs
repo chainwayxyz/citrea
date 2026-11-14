@@ -200,6 +200,7 @@ async fn start_proof(
                 input: borsh::to_vec(&make_transition_data(header_hash)).unwrap(),
                 assumptions: vec![],
                 elf: vec![],
+                program: [0; 8],
             },
             ReceiptType::Groth16,
             id,

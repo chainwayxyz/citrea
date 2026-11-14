@@ -264,7 +264,7 @@ pub fn test_create_single_chunk(
             if reveal_hash.starts_with(reveal_tx_prefix) {
                 // check if inscription locked to the correct address
                 let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
-                let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+                let (x_only_pub_key, _parity) = recovery_key_pair.to_keypair().x_only_public_key();
                 assert_eq!(
                     Address::p2tr_tweaked(
                         TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),
@@ -424,7 +424,7 @@ pub fn test_create_single_aggregate(
             if reveal_hash.starts_with(reveal_tx_prefix) {
                 // check if inscription locked to the correct address
                 let recovery_key_pair = key_pair.tap_tweak(SECP256K1, merkle_root);
-                let (x_only_pub_key, _parity) = recovery_key_pair.to_inner().x_only_public_key();
+                let (x_only_pub_key, _parity) = recovery_key_pair.to_keypair().x_only_public_key();
                 assert_eq!(
                     Address::p2tr_tweaked(
                         TweakedPublicKey::dangerous_assume_tweaked(x_only_pub_key),

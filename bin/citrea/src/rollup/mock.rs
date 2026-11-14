@@ -3,12 +3,11 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use citrea_common::backup::{create_backup_rpc_module, BackupManager};
-// use citrea_sp1::host::SP1Host;
-use citrea_common::config::risc0::Risc0HostConfig;
+use citrea_common::config::sp1::SP1HostConfig;
 use citrea_common::config::ProverGuestRunConfig;
 use citrea_common::{FullNodeConfig, NodeType, RpcConfig};
 use citrea_primitives::forks::use_network_forks;
-use citrea_risc0_adapter::host::Risc0Host;
+use citrea_sp1::host::SP1Host;
 use citrea_stf::genesis_config::StorageConfig;
 use citrea_stf::runtime::CitreaRuntime;
 use prover_services::{ParallelProverService, ProofGenMode};
@@ -37,7 +36,7 @@ impl RollupBlueprint for MockDemoRollup {
     type DaSpec = MockDaSpec;
     type DaConfig = MockDaConfig;
     type DaVerifier = MockDaVerifier;
-    type Vm = Risc0Host;
+    type Vm = SP1Host;
 
     fn new(network: Network) -> Self {
         use_network_forks(network);
@@ -118,12 +117,14 @@ impl RollupBlueprint for MockDemoRollup {
     async fn create_prover_service(
         &self,
         proving_mode: ProverGuestRunConfig,
-        risc0_host_config: Risc0HostConfig,
+        sp1_host_config: SP1HostConfig,
         da_service: &Arc<Self::DaService>,
         proof_sampling_number: usize,
         is_light_client_prover: bool,
     ) -> ParallelProverService<Self::DaService, Self::Vm> {
-        let vm = Risc0Host::new(self.network, risc0_host_config).await;
+        let vm = SP1Host::new(self.network, sp1_host_config);
+        vm.require_network_proving(proving_mode, proof_sampling_number)
+            .await;
 
         let proof_mode = match proving_mode {
             ProverGuestRunConfig::Skip => ProofGenMode::Skip,
