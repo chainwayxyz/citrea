@@ -14,7 +14,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          sudo apt update && sudo apt -y install curl gcc cpp cmake clang llvm
+          sudo apt update && sudo apt -y install curl gcc cpp cmake clang llvm protobuf-compiler
           sudo apt -y autoremove && sudo apt clean && sudo rm -rf /var/lib/apt/lists/*
 
       - name: Install Rust
@@ -49,7 +49,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          sudo apt update && sudo apt -y install curl gcc cpp cmake clang llvm
+          sudo apt update && sudo apt -y install curl gcc cpp cmake clang llvm protobuf-compiler
           sudo apt -y autoremove && sudo apt clean && sudo rm -rf /var/lib/apt/lists/*
 
       - name: Install Rust
