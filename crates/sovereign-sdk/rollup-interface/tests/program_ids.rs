@@ -94,7 +94,7 @@ fn method_id_updates_encode_native_words_without_bn254_packing() {
 
 #[cfg(feature = "native")]
 #[test]
-fn rpc_method_ids_remain_native_digest_hex_strings() {
+fn rpc_method_ids_use_borsh_byte_layout() {
     use sov_rollup_interface::rpc::BatchProofMethodIdRpcResponse;
     let response = BatchProofMethodIdRpcResponse {
         height: alloy_primitives::U64::from(42),
@@ -103,7 +103,20 @@ fn rpc_method_ids_remain_native_digest_hex_strings() {
     let json = serde_json::to_value(&response).unwrap();
     assert_eq!(
         json["methodId"],
-        serde_json::json!("0x0000000100000002000000030000000400000005000000060000000700000008")
+        serde_json::json!("0x0100000002000000030000000400000005000000060000000700000008000000")
+    );
+    // The RPC hex is exactly the method ID bytes of a signed DA method-ID update body.
+    let body = BatchProofMethodIdBody {
+        method_id: PROGRAM,
+        activation_l2_height: 42,
+        chain_id: 7,
+    };
+    assert_eq!(
+        json["methodId"],
+        serde_json::json!(format!(
+            "0x{}",
+            hex::encode(&borsh::to_vec(&body).unwrap()[..32])
+        ))
     );
     assert_eq!(
         serde_json::from_value::<BatchProofMethodIdRpcResponse>(json.clone()).unwrap(),
@@ -111,7 +124,7 @@ fn rpc_method_ids_remain_native_digest_hex_strings() {
     );
     let mut without_prefix = serde_json::to_value(&response).unwrap();
     without_prefix["methodId"] =
-        serde_json::json!("0000000100000002000000030000000400000005000000060000000700000008");
+        serde_json::json!("0100000002000000030000000400000005000000060000000700000008000000");
     assert_eq!(
         serde_json::from_value::<BatchProofMethodIdRpcResponse>(without_prefix).unwrap(),
         response

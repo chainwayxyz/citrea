@@ -83,7 +83,7 @@ pub struct LatestDaStateRpcResponse {
 pub struct BatchProofMethodIdRpcResponse {
     /// Activation height
     pub height: U64,
-    /// Native SP1 verification-key digest.
+    /// Native SP1 verification-key digest, as hex of its Borsh bytes (little-endian words).
     #[serde(with = "utils::rpc_hex_words")]
     pub method_id: ProgramVKeyHash,
 }
@@ -124,6 +124,7 @@ pub struct LightClientProofOutputRpcResponse {
     pub lcp_state_root: [u8; 32],
     /// The method id of the light client proof
     /// This is used to compare the previous light client proof method id with the input (current) method id
+    /// Encoded as hex of its Borsh bytes (little-endian words).
     #[serde(with = "utils::rpc_hex_words")]
     pub light_client_proof_method_id: ProgramVKeyHash,
     /// Latest DA state after proof
@@ -516,37 +517,32 @@ pub mod utils {
         }
     }
 
-    /// Native program digests as 32-byte hex strings, matching SP1 6.10.0's
-    /// [HashableKey::hash_bytes()] and [words_to_bytes_be]. Deserialization reverses
-    /// that encoding; this is separate from the packed Groth16 `bytes32()` encoding.
+    /// Native program digests (`[u32; 8]`) as 32-byte hex strings in the same byte layout as
+    /// Borsh, i.e. eight little-endian words. This is how method IDs appear in circuit
+    /// I/O, storage, and signed DA method-ID update bodies (`BatchProofMethodIdBody`), so
+    /// the RPC hex can be compared to or copied into those bytes directly.
     ///
-    /// [HashableKey::hash_bytes()]: https://github.com/succinctlabs/sp1/blob/d83ed91f96701209613720708f36ffce0e98ed33/crates/hypercube/src/verifier/hashable_key.rs#L77-L80
-    /// [words_to_bytes_be]: https://github.com/succinctlabs/sp1/blob/d83ed91f96701209613720708f36ffce0e98ed33/crates/hypercube/src/verifier/hashable_key.rs#L34-L43
+    /// This is not SP1's `hash_bytes()` (big-endian words) nor the packed Groth16 `bytes32()`.
     pub mod rpc_hex_words {
+        use serde::de::Error;
+        use serde::ser::Error as _;
         use serde::{Deserializer, Serializer};
 
-        /// Serialize eight native words in big-endian order with a `0x` prefix.
+        /// Serialize eight native words as `0x`-prefixed hex of their Borsh bytes.
         pub fn serialize<S: Serializer>(
             words: &[u32; 8],
             serializer: S,
         ) -> Result<S::Ok, S::Error> {
-            let bytes: [u8; 32] = std::array::from_fn(|i| words[i / 4].to_be_bytes()[i % 4]);
+            let bytes = borsh::to_vec(words).map_err(S::Error::custom)?;
             super::rpc_hex::serialize(bytes, serializer)
         }
 
-        /// Decode a 32-byte hex string into eight native words.
+        /// Decode a 32-byte hex string of Borsh bytes into eight native words.
         pub fn deserialize<'de, D: Deserializer<'de>>(
             deserializer: D,
         ) -> Result<[u32; 8], D::Error> {
             let bytes: [u8; 32] = super::rpc_hex::deserialize(deserializer)?;
-            Ok(std::array::from_fn(|i| {
-                u32::from_be_bytes([
-                    bytes[4 * i],
-                    bytes[4 * i + 1],
-                    bytes[4 * i + 2],
-                    bytes[4 * i + 3],
-                ])
-            }))
+            borsh::from_slice(&bytes).map_err(D::Error::custom)
         }
     }
 
