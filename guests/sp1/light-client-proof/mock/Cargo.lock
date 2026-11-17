@@ -379,7 +379,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 dependencies = [
  "alloy-primitives",
  "borsh",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -406,7 +406,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-sp1"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -416,7 +416,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-sp1-batch-proof"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 
 [[package]]
 name = "const-default"
@@ -975,7 +975,7 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "light-client-proof-mock"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 dependencies = [
  "citrea-light-client-prover",
  "citrea-primitives",
@@ -1736,7 +1736,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 dependencies = [
  "borsh",
  "derive_more",
@@ -1752,7 +1752,7 @@ dependencies = [
 
 [[package]]
 name = "sov-mock-da"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1766,7 +1766,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 dependencies = [
  "anyhow",
  "bech32",
@@ -1786,7 +1786,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 dependencies = [
  "anyhow",
  "bech32",
@@ -1806,7 +1806,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 dependencies = [
  "anyhow",
  "borsh",
@@ -1823,7 +1823,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "2.10.0"
+version = "3.0.0-rc.3"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",

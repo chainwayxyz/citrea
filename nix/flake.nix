@@ -22,7 +22,7 @@
           overlays = [ (import rust-overlay) ];
         };
 
-        rustToolchain = pkgs.rust-bin.stable."1.97.0".minimal.override {
+        rustToolchain = pkgs.rust-bin.stable."1.97.1".minimal.override {
           extensions = [ "rust-src" "clippy" "rustfmt" ];
         };
 

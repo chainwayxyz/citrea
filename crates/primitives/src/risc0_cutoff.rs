@@ -61,8 +61,36 @@ impl Risc0Cutoff {
 const MAINNET_RISC0_CUTOFF: Option<Risc0Cutoff> = None;
 // TODO(testnet): fill L0 and P0 before releasing v3.
 const TESTNET_RISC0_CUTOFF: Option<Risc0Cutoff> = None;
-// TODO(devnet): fill L0 and P0 before releasing v3.
-const DEVNET_RISC0_CUTOFF: Option<Risc0Cutoff> = None;
+// Devnet P0: light client proof output at L0 = 4213905.
+const DEVNET_RISC0_CUTOFF: Option<Risc0Cutoff> = Some(Risc0Cutoff {
+    da_state: LatestDaState {
+        block_hash: [
+            12, 17, 250, 9, 209, 14, 93, 215, 241, 35, 118, 15, 52, 227, 138, 236, 136, 192, 65,
+            10, 136, 161, 195, 234, 182, 94, 129, 188, 37, 2, 0, 0,
+        ],
+        block_height: 4213905,
+        total_work: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 178,
+            87, 220, 144, 168,
+        ],
+        current_target_bits: 0x1e0377ae,
+        epoch_start_time: 1794648006,
+        prev_11_timestamps: [
+            1794652792, 1794652802, 1794652813, 1794652824, 1794652721, 1794652731, 1794652741,
+            1794652751, 1794652761, 1794652771, 1794652782,
+        ],
+    },
+    l2_state_root: [
+        56, 163, 53, 79, 129, 148, 188, 98, 186, 183, 16, 201, 33, 231, 125, 252, 4, 189, 85, 124,
+        34, 128, 203, 54, 227, 42, 193, 4, 110, 207, 140, 246,
+    ],
+    last_l2_height: 24771035,
+    last_sequencer_commitment_index: 24905,
+    lc_state_root: [
+        230, 122, 65, 127, 119, 126, 220, 88, 146, 163, 78, 33, 100, 116, 194, 123, 64, 188, 76,
+        31, 185, 137, 232, 67, 121, 116, 217, 184, 151, 155, 67, 26,
+    ],
+});
 
 /// Returns the RISC0 cutoff of the network, `None` if it is not set or the network has no RISC0 history.
 pub const fn risc0_cutoff(network: Network) -> Option<Risc0Cutoff> {

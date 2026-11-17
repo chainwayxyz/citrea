@@ -83,7 +83,7 @@ pub const DEVNET_FORKS: [Fork; 4] = [
     Fork::new(SpecId::Tangerine, 0),
     Fork::new(SpecId::Tangelo, 8063000), // will be reached Oct 18 2025 ~12 PM
     Fork::new(SpecId::TangeloSelfdestructFix, 12654000), // will be reached Feb 04 2026 ~22 PM
-    Fork::new(SpecId::Pomelo, u64::MAX),
+    Fork::new(SpecId::Pomelo, 24780000), // will be reached Nov 14 2026 ~15 PM UTC
 ];
 
 pub const NIGHTLY_FORKS: [Fork; 1] = [Fork::new(SpecId::latest(), 0)];
