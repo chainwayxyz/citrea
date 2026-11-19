@@ -167,7 +167,7 @@ contract ClementineActorsTest is Test {
     function testInitializeSetsRolesAndCouncil() public view {
         assertEq(actors.maintainer(), maintainer);
         assertEq(actors.owner(), owner);
-        assertEq(actors.circuitVersion(), 1);
+        assertEq(actors.bridgeVersion(), 1);
         assertEq(actors.securityCouncilThreshold(), 2);
         assertTrue(actors.signingPaused());
         assertEq(actors.setupGeneration(), 1);
@@ -311,11 +311,11 @@ contract ClementineActorsTest is Test {
         actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, bytes32(0));
     }
 
-    function testCannotProveSetupWithWrongCircuitVersion() public {
+    function testCannotProveSetupWithWrongBridgeVersion() public {
         addCandidatePair(operatorKey, watchtowerKey);
 
         vm.prank(owner);
-        actors.setCircuitVersion(2);
+        actors.setBridgeVersion(2);
 
         vm.expectRevert("Invalid circuit script");
         actors.proveGarbledSetup(circuitGeneratedTx(), operatorKey, watchtowerKey, 990, sourceShaScriptPubkeys);
@@ -570,22 +570,22 @@ contract ClementineActorsTest is Test {
         actors.disableWatchtower(watchtowerKey);
     }
 
-    function testCannotDecreaseCircuitVersion() public {
+    function testCannotDecreaseBridgeVersion() public {
         vm.prank(owner);
-        actors.setCircuitVersion(3);
+        actors.setBridgeVersion(3);
 
         vm.prank(owner);
-        vm.expectRevert("Circuit version must increase");
-        actors.setCircuitVersion(2);
+        vm.expectRevert("Bridge version must increase");
+        actors.setBridgeVersion(2);
     }
 
-    function testCircuitVersionUpdatePausesAndClearsState() public {
+    function testBridgeVersionUpdatePausesAndClearsState() public {
         setActivePair();
 
         vm.prank(owner);
-        actors.setCircuitVersion(2);
+        actors.setBridgeVersion(2);
 
-        assertEq(actors.circuitVersion(), 2);
+        assertEq(actors.bridgeVersion(), 2);
         assertTrue(actors.signingPaused());
         assertEq(actors.getActiveOperators().length, 0);
         assertEq(actors.getActiveWatchtowers().length, 0);
