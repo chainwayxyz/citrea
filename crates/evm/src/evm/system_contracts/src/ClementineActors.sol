@@ -54,7 +54,7 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
     uint256 public constant MAX_SECURITY_COUNCIL = 100;
 
     address public maintainer;
-    uint256 public circuitVersion;
+    uint256 public bridgeVersion;
     uint256 public securityCouncilThreshold;
     uint256 public setupGeneration;
     bool public signingPaused;
@@ -70,7 +70,7 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
 
     event MaintainerUpdated(address oldMaintainer, address newMaintainer);
     event SigningPauseUpdated(bool signingPaused);
-    event CircuitVersionUpdated(uint256 oldCircuitVersion, uint256 newCircuitVersion);
+    event BridgeVersionUpdated(uint256 oldBridgeVersion, uint256 newBridgeVersion);
     event SecurityCouncilUpdated(uint256 threshold, bytes32[] members);
     event CandidateOperatorsAdded(bytes32[] operatorKeys, bytes[] collateralOutpoints, uint256 startIndex);
     event CandidateWatchtowersAdded(bytes32[] watchtowerKeys, uint256 startIndex);
@@ -102,7 +102,7 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
     function initialize(
         address _owner,
         address _maintainer,
-        uint256 _circuitVersion,
+        uint256 _bridgeVersion,
         uint256 _securityCouncilThreshold,
         bytes32[] calldata _securityCouncil
     ) external initializer {
@@ -115,7 +115,7 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         setupGeneration = 1;
         signingPaused = true;
 
-        _setCircuitVersion(_circuitVersion);
+        _setBridgeVersion(_bridgeVersion);
         _setSecurityCouncil(_securityCouncilThreshold, _securityCouncil);
 
         emit MaintainerUpdated(address(0), _maintainer);
@@ -141,8 +141,8 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         emit MaintainerUpdated(oldMaintainer, _maintainer);
     }
 
-    function setCircuitVersion(uint256 _circuitVersion) external onlyOwner {
-        _setCircuitVersion(_circuitVersion);
+    function setBridgeVersion(uint256 _bridgeVersion) external onlyOwner {
+        _setBridgeVersion(_bridgeVersion);
         _resetSigningState();
     }
 
@@ -342,12 +342,12 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
         return status == ActorStatus.Candidate || status == ActorStatus.Active;
     }
 
-    function _setCircuitVersion(uint256 _circuitVersion) internal {
-        uint256 oldCircuitVersion = circuitVersion;
-        require(_circuitVersion > oldCircuitVersion, "Circuit version must increase");
-        require(_circuitVersion <= type(uint16).max, "Circuit version too large");
-        circuitVersion = _circuitVersion;
-        emit CircuitVersionUpdated(oldCircuitVersion, _circuitVersion);
+    function _setBridgeVersion(uint256 _bridgeVersion) internal {
+        uint256 oldBridgeVersion = bridgeVersion;
+        require(_bridgeVersion > oldBridgeVersion, "Bridge version must increase");
+        require(_bridgeVersion <= type(uint16).max, "Bridge version too large");
+        bridgeVersion = _bridgeVersion;
+        emit BridgeVersionUpdated(oldBridgeVersion, _bridgeVersion);
     }
 
     function _setSecurityCouncil(uint256 _securityCouncilThreshold, bytes32[] calldata _securityCouncil) internal {
@@ -576,7 +576,7 @@ contract ClementineActors is Initializable, Ownable2StepUpgradeable {
             hex"ad20",
             operatorKey,
             hex"ad51006302",
-            _uint16LE(circuitVersion),
+            _uint16LE(bridgeVersion),
             hex"24",
             operatorCollateralOutpoint,
             securityCouncilScript,
