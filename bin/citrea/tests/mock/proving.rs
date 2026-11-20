@@ -345,6 +345,10 @@ async fn test_batch_prover_prove_rpcs() {
 
     // ensure that prover also syncs up to l2 block 6
     wait_for_l2_block(&prover_client, 6, None).await;
+    // all nodes in this process share the global short header proof provider, so the full node
+    // must finish executing blocks 5-6 before witness generation, or its queries get recorded
+    // as duplicate short header proofs in the prover's input
+    wait_for_l2_block(&full_node_client, 6, None).await;
     wait_for_prover_l1_height(&prover_client, 4, None)
         .await
         .unwrap();

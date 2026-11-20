@@ -59,8 +59,36 @@ impl Risc0Cutoff {
 // Rebuild and pin the network's SP1 guests after filling these constants.
 // TODO(mainnet): fill L0 and P0 before releasing v3.
 const MAINNET_RISC0_CUTOFF: Option<Risc0Cutoff> = None;
-// TODO(testnet): fill L0 and P0 before releasing v3.
-const TESTNET_RISC0_CUTOFF: Option<Risc0Cutoff> = None;
+// Testnet P0: light client proof output at L0 = 161766.
+const TESTNET_RISC0_CUTOFF: Option<Risc0Cutoff> = Some(Risc0Cutoff {
+    da_state: LatestDaState {
+        block_hash: [
+            254, 162, 80, 42, 65, 145, 11, 32, 200, 59, 140, 227, 174, 225, 157, 94, 127, 229, 202,
+            228, 45, 138, 90, 113, 131, 6, 67, 0, 0, 0, 0, 0,
+        ],
+        block_height: 161766,
+        total_work: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 143, 185, 227, 1,
+            38, 112, 72, 255, 142,
+        ],
+        current_target_bits: 0x1902a986,
+        epoch_start_time: 1794654888,
+        prev_11_timestamps: [
+            1794872381, 1794866043, 1794867244, 1794868445, 1794869646, 1794867257, 1794868701,
+            1794869947, 1794868445, 1794869979, 1794871180,
+        ],
+    },
+    l2_state_root: [
+        11, 180, 14, 214, 211, 199, 31, 209, 163, 125, 230, 42, 241, 166, 178, 232, 132, 172, 185,
+        10, 128, 236, 63, 196, 56, 106, 85, 182, 16, 191, 114, 91,
+    ],
+    last_l2_height: 33985925,
+    last_sequencer_commitment_index: 26711,
+    lc_state_root: [
+        48, 151, 254, 71, 87, 109, 11, 197, 149, 14, 216, 227, 244, 178, 52, 215, 210, 184, 158,
+        105, 165, 90, 141, 19, 54, 177, 142, 242, 66, 12, 46, 54,
+    ],
+});
 // Devnet P0: light client proof output at L0 = 4213905.
 const DEVNET_RISC0_CUTOFF: Option<Risc0Cutoff> = Some(Risc0Cutoff {
     da_state: LatestDaState {

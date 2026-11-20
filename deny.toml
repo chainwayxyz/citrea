@@ -73,6 +73,9 @@ ignore = [
   "RUSTSEC-2026-0530", # hickory-proto: DNSSEC parent-side NSEC at zone cut (dnssec features not enabled)
   "RUSTSEC-2026-0531", # hickory-proto: DNSSEC child-side NSEC/NSEC3 for missing DS (dnssec features not enabled)
   "RUSTSEC-2026-0532", # hickory-proto: DNSSEC parent-side NSEC3 at zone cut (dnssec features not enabled)
+  "RUSTSEC-2026-0549", # hickory-proto: DNSSEC NSEC3 NODATA at zone apex (dnssec features not enabled)
+  "RUSTSEC-2026-0550", # hickory-proto: DNSSEC unsigned NSEC/NSEC3 in nonexistence proof (dnssec features not enabled)
+  "RUSTSEC-2026-0551", # hickory-proto: DNSSEC non-IN class records marked secure (dnssec features not enabled)
   "RUSTSEC-2026-0173", # Ignore unmaintained proc-macro-error2
   "RUSTSEC-2026-0183", # git2: Remote::list() unsoundness. Build-time only (vergen-git2 embedding git info). Fix requires git2 >=0.21, bounded by reth v1.3.7 → vergen-git2. Remove when reth tag is bumped.
   "RUSTSEC-2026-0184", # git2: BlameHunk Signature unsoundness. Build-time only (vergen-git2 embedding git info). Fix requires git2 >=0.21, bounded by reth v1.3.7 → vergen-git2. Remove when reth tag is bumped.
@@ -96,6 +99,10 @@ ignore = [
   # libsqlite3-sys 0.35.0 (bundled SQLite 3.50.2) comes from rusqlite 0.37 in sov-mock-da. The fix needs libsqlite3-sys >=0.39 (rusqlite >=0.41),
   # which needs cc >=1.2.27, blocked by reth v1.3.7's cc =1.2.15 pin. Mock DA only opens mock_da.db in its own configured data directory.
   "RUSTSEC-2026-0459", # libsqlite3-sys: bundled SQLite reads uninit page-cache memory from a crafted db/-wal pair. Remove when reth is bumped.
+  # chrono/humantime were declared unmaintained with no fixed release. chrono is pulled in by SP1 (sp1-build, sp1-prover-types),
+  # rolling-file and citrea-sequencer; humantime via reth v1.3.7 (humantime-serde). Unmaintained only, no known vulnerability.
+  "RUSTSEC-2026-0543", # Ignore unmaintained chrono.
+  "RUSTSEC-2026-0542", # Ignore unmaintained humantime (wraps chrono).
   "RUSTSEC-2026-0441", # Ignore unmaintained pin-utils. No fixed version exists; pulled in by the AWS SDK crates under sp1-sdk (aws-smithy-*).
 ]
 unsound = "all"

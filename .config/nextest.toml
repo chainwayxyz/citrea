@@ -8,7 +8,7 @@ test-group = 'state-tests'
 priority = 100
 
 [test-groups.state-tests]
-max-threads = 15
+max-threads = 8
 
 [[profile.default.overrides]]
 filter = 'binary_id(citrea::bitcoin_e2e)'
@@ -18,7 +18,7 @@ slow-timeout = { period = "5m", terminate-after = 4 }
 priority = 90
 
 [test-groups.bitcoin-e2e]
-max-threads = 15
+max-threads = 4
 
 [[profile.default.overrides]]
 filter = 'binary_id(citrea::mock_e2e)'

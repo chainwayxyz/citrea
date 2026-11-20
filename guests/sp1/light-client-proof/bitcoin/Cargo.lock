@@ -249,7 +249,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-da"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 dependencies = [
  "anyhow",
  "bitcoin",
@@ -465,7 +465,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-light-client-prover"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 dependencies = [
  "alloy-primitives",
  "borsh",
@@ -481,7 +481,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-primitives"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 dependencies = [
  "alloy-eips",
  "brotli",
@@ -492,7 +492,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-sp1"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 dependencies = [
  "anyhow",
  "borsh",
@@ -502,7 +502,7 @@ dependencies = [
 
 [[package]]
 name = "citrea-sp1-batch-proof"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 
 [[package]]
 name = "const-default"
@@ -1094,7 +1094,7 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "light-client-proof-bitcoin"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 dependencies = [
  "bitcoin-da",
  "citrea-light-client-prover",
@@ -1877,7 +1877,7 @@ dependencies = [
 
 [[package]]
 name = "sov-keys"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 dependencies = [
  "borsh",
  "derive_more",
@@ -1893,7 +1893,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-api"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -1913,7 +1913,7 @@ dependencies = [
 
 [[package]]
 name = "sov-modules-core"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -1933,7 +1933,7 @@ dependencies = [
 
 [[package]]
 name = "sov-rollup-interface"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 dependencies = [
  "anyhow",
  "borsh",
@@ -1950,7 +1950,7 @@ dependencies = [
 
 [[package]]
 name = "sov-state"
-version = "3.0.0-rc.3"
+version = "3.0.0-rc.4"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
