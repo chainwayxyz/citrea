@@ -67,7 +67,7 @@ pub fn fork_from_block_number(block_number: u64) -> Fork {
 pub const MAINNET_FORKS: [Fork; 3] = [
     Fork::new(SpecId::Tangelo, 0),
     Fork::new(SpecId::TangeloSelfdestructFix, 3098000), // will be reached Feb 5 2026 ~1 PM UTC
-    Fork::new(SpecId::Pomelo, u64::MAX),
+    Fork::new(SpecId::Pomelo, 15759000),                // will be reached Nov 25 ~3.30 PM UTC
 ];
 
 pub const TESTNET_FORKS: [Fork; 6] = [
