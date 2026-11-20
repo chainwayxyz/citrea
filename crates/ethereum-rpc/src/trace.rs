@@ -199,7 +199,7 @@ pub fn debug_trace_by_block_number<C: sov_modules_api::Context, Da: DaService>(
             trace_memory_limit_mb,
         );
     }
-    let block_hash = evm.blockhash_get(block_number, working_set);
+    let block_hash = evm.block_hash_from_number(block_number, working_set);
 
     // `skip_cache` returned above unless the request names a built-in tracer, so both are set.
     let requested_opts = opts.unwrap();

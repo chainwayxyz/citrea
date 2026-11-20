@@ -20,7 +20,8 @@ use alloy_rpc_types_trace::geth::{
 // use citrea::initialize_logging;
 use citrea_common::SequencerConfig;
 use citrea_evm::smart_contracts::{
-    AnotherLogEvent, CallerContract, LogEvent, LogsContract, SimpleStorageContract, TestContract,
+    AnotherLogEvent, BlockHashContract, CallerContract, LogEvent, LogsContract,
+    SimpleStorageContract, TestContract,
 };
 use citrea_stf::genesis_config::GenesisPaths;
 use jsonrpsee::core::client::ClientT;
@@ -31,7 +32,7 @@ use serde_json::{self, json};
 
 use crate::common::client::{TestClient, MAX_FEE_PER_GAS};
 use crate::common::helpers::{
-    create_default_rollup_config, start_rollup, tempdir_with_children, NodeMode,
+    create_default_rollup_config, start_rollup, tempdir_with_children, wait_for_l2_block, NodeMode,
 };
 use crate::common::{make_test_client, TEST_DATA_GENESIS_PATH};
 
@@ -917,7 +918,8 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
         .await
         .unwrap();
     test_client.send_publish_batch_request().await;
-    let send_eth_tx_hash = send_eth_req.get_receipt().await.unwrap().transaction_hash;
+    let send_eth_receipt = send_eth_req.get_receipt().await.unwrap();
+    let send_eth_tx_hash = send_eth_receipt.transaction_hash;
 
     // get the trace of send_eth_tx_hash and expect call_tx_hash trace to be in the cache
     let send_eth_trace = test_client
@@ -939,6 +941,7 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
             "value": "0x4563918244f40000"
         },
         "blockNumber":2,
+        "blockHash": send_eth_receipt.block_hash.unwrap(),
         "result": {
             "gasUsed": "0x5208",
             "output": "0x"
@@ -966,6 +969,7 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
             "value": "0x4563918244f40000"
         },
         "blockNumber":2,
+        "blockHash": send_eth_receipt.block_hash.unwrap(),
         "result": {
             "gasUsed": "0x5208",
             "output": "0x"
@@ -1045,11 +1049,8 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
 
     test_client.send_publish_batch_request().await;
 
-    let ss_contract_tx_hash = deploy_ss_contract_req
-        .get_receipt()
-        .await
-        .unwrap()
-        .transaction_hash;
+    let deploy_ss_contract_receipt = deploy_ss_contract_req.get_receipt().await.unwrap();
+    let ss_contract_tx_hash = deploy_ss_contract_receipt.transaction_hash;
 
     // get the trace of send_eth_tx_hash and expect call_tx_hash trace to be in the cache
     let deploy_contract_trace = test_client
@@ -1070,6 +1071,7 @@ async fn test_flat_call_tracer() -> Result<(), Box<dyn std::error::Error>> {
             "creationMethod": "create"
         },
         "blockNumber":3,
+        "blockHash": deploy_ss_contract_receipt.block_hash.unwrap(),
         "result": {
             "address": "0xcf7ed3acca5a467e9e704c703e8d87f634fb0fc9",
             "code": "0x608060405234801561000f575f80fd5b506004361061003f575f3560e01c80634e70b1dc1461004357806360fe47b1146100615780636d4ce63c1461007d575b5f80fd5b61004b61009b565b60405161005891906100c9565b60405180910390f35b61007b60048036038101906100769190610110565b6100a0565b005b6100856100a9565b60405161009291906100c9565b60405180910390f35b5f5481565b805f8190555050565b5f8054905090565b5f819050919050565b6100c3816100b1565b82525050565b5f6020820190506100dc5f8301846100ba565b92915050565b5f80fd5b6100ef816100b1565b81146100f9575f80fd5b50565b5f8135905061010a816100e6565b92915050565b5f60208284031215610125576101246100e2565b5b5f610132848285016100fc565b9150509291505056fea264697066735822122011ac1b48890fc5332d67a2b84f4a617f861d0d0d10b928535aa5655c9ab1c66664736f6c63430008180033",
@@ -2102,5 +2104,100 @@ async fn test_trace_chain_block_limit() -> Result<(), Box<dyn std::error::Error>
     );
     rollup_task.graceful_shutdown();
 
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_trace_sees_parent_block_hash() -> Result<(), Box<dyn std::error::Error>> {
+    let (task_manager, test_client, _) = init_sequencer().await?;
+
+    let contract = BlockHashContract::default();
+    let deploy_req = test_client
+        .deploy_contract(contract.byte_code(), None)
+        .await?;
+    test_client.send_publish_batch_request().await;
+    let contract_address = deploy_req.get_receipt().await?.contract_address.unwrap();
+
+    // The tx lands in head + 1 and reads blockhash(head), its parent
+    let head = test_client.eth_block_number().await;
+    let tx = test_client
+        .contract_transaction(contract_address, contract.get_block_hash(head), None)
+        .await;
+    test_client.send_publish_batch_request().await;
+    let receipt = tx.get_receipt().await?;
+    assert_eq!(receipt.block_number, Some(head + 1));
+
+    let parent_hash = test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(head)))
+        .await
+        .header
+        .hash;
+
+    let frame = test_client
+        .debug_trace_transaction(
+            receipt.transaction_hash,
+            Some(GethDebugTracingOptions::call_tracer(CallConfig::default())),
+        )
+        .await
+        .try_into_call_frame()
+        .unwrap();
+    assert_eq!(frame.output, Some(Bytes::from(parent_hash.0)));
+
+    task_manager.graceful_shutdown();
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_trace_block_sees_parent_block_hash_after_ring_buffer_wraps(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let (task_manager, test_client, _) = init_sequencer().await?;
+
+    let contract = BlockHashContract::default();
+    let deploy_req = test_client
+        .deploy_contract(contract.byte_code(), None)
+        .await?;
+    test_client.send_publish_batch_request().await;
+    let contract_address = deploy_req.get_receipt().await?.contract_address.unwrap();
+
+    // Past 256 blocks the parent's blockhash slot still holds the hash of the block 256 before it
+    for _ in test_client.eth_block_number().await..300 {
+        test_client.spam_publish_batch_request().await?;
+    }
+    wait_for_l2_block(&test_client, 300, None).await;
+
+    // The tx lands in head + 1 and reads blockhash(head), its parent
+    let head = test_client.eth_block_number().await;
+    let tx = test_client
+        .contract_transaction(contract_address, contract.get_block_hash(head), None)
+        .await;
+    test_client.send_publish_batch_request().await;
+    let receipt = tx.get_receipt().await?;
+    let block_number = receipt.block_number.unwrap();
+    assert_eq!(block_number, head + 1);
+
+    let parent_hash = test_client
+        .eth_get_block_by_number(Some(BlockNumberOrTag::Number(head)))
+        .await
+        .header
+        .hash;
+
+    let opts = Some(GethDebugTracingOptions::call_tracer(CallConfig::default()));
+    let tx_index = receipt.transaction_index.unwrap() as usize;
+    for traces in [
+        test_client
+            .debug_trace_block_by_number(BlockNumberOrTag::Number(block_number), opts.clone())
+            .await,
+        test_client
+            .debug_trace_block_by_hash(receipt.block_hash.unwrap(), opts.clone())
+            .await,
+    ] {
+        let TraceResult::Success { result, .. } = &traces[tx_index] else {
+            panic!("Unexpected trace result: {:?}", traces[tx_index]);
+        };
+        let frame = result.clone().try_into_call_frame().unwrap();
+        assert_eq!(frame.output, Some(Bytes::from(parent_hash.0)));
+    }
+
+    task_manager.graceful_shutdown();
     Ok(())
 }

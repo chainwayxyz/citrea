@@ -1562,8 +1562,12 @@ impl<C: sov_modules_api::Context> Evm<C> {
             })
             .collect();
 
+        let parent_block_number = block_number - 1;
         // set state to end of the previous block
-        set_state_to_end_of_evm_block::<C>(block_number - 1, working_set);
+        set_state_to_end_of_evm_block::<C>(parent_block_number, working_set);
+        // the begin hook of this block sets the parent hash, which the end-of-previous-block state lacks
+        let parent_block_hash = &sealed_block.header.parent_hash;
+        self.blockhash_set(parent_block_number, parent_block_hash, working_set);
 
         let citrea_spec_id = fork_fn(block_number).spec_id;
         let evm_spec_id = citrea_spec_id_to_evm_spec_id(citrea_spec_id);
