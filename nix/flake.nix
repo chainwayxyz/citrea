@@ -134,8 +134,13 @@
           # GCC 14 promoted -Wint-conversion to an error by default, which breaks
           # the bundled jemalloc in tikv-jemalloc-sys 0.6.0 (its strerror_r call
           # predates the XSI-compliant prototype). Demote it back to a warning.
-          NIX_CFLAGS_COMPILE =
-            "-Wno-int-conversion";
+          #
+          # Nix's cc-wrapper always defines _FORTIFY_SOURCE, and glibc emits a
+          # #warning for it when a unit is compiled at -O0. jemalloc's configure
+          # probes strerror_r with -Werror, so that warning fails the probe, and
+          # tikv-jemalloc-sys 0.6.1 turned the failed probe into a hard error
+          # ("cannot determine return type of strerror_r"). Keep it a warning.
+          NIX_CFLAGS_COMPILE = "-Wno-int-conversion -Wno-error=cpp";
 
           RUSTFLAGS = builtins.concatStringsSep " " [
             "--remap-path-prefix=${src}=/build/source"

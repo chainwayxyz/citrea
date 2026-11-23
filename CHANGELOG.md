@@ -1,6 +1,22 @@
 # Changelog
 ## [Unreleased]
 
+
+## [v3.0.0](2026-11-23)
+v3.0.0 introduces the Pomelo upgrade and migrates proving from RISC Zero to SP1.
+
+Pomelo activates on mainnet at L2 block `15759000` (~Nov 25 2026, 3:30 PM UTC). Nodes have until then to upgrade: a v2 node stops syncing at the first Pomelo block until it runs v3.0.0.
+
+With this upgrade:
+- Batch proofs and light client proofs are SP1 proofs. Mainnet SP1 proving continues from the RISC Zero light client proof of Bitcoin block `977169`.
+- Several other fixes
+
+### Full nodes
+Stop v2 and start v3.0.0 on the same database. No rollback is needed: on its first start v3.0.0 rescans L1 from Bitcoin block `977169` on its own, to read the SP1 proofs v2 discarded.
+
+A full node synced from scratch on v3.0.0 accepts the RISC Zero proofs up to Bitcoin block `977169` on the batch prover's DA signature, without verifying them. To verify them, sync with v2.10.0 up to that block and then switch to v3.0.0.
+
+
 ## [v2.10.0](2026-11-02)
 ### Changed
 - fix(rpc): return all unpolled logs from `eth_getFilterChanges` ([#3349](https://github.com/chainwayxyz/citrea/pull/3349))
@@ -298,7 +314,8 @@ For a detailed list of changes, see auto generated changelog at [v0.6.0 release 
 - Fix bug where full nodes try verifying sequencer commitments which they have not synced up to. ([#1220](https://github.com/chainwayxyz/citrea/pull/1220))
 - Set default priority fee to 0. ([#1226](https://github.com/chainwayxyz/citrea/pull/1226))
 
-[unreleased]: https://github.com/chainwayxyz/citrea/compare/v2.10.0...HEAD
+[unreleased]: https://github.com/chainwayxyz/citrea/compare/v3.0.0...HEAD
+[v3.0.0]: https://github.com/chainwayxyz/citrea/compare/v2.10.0...v3.0.0
 [v2.10.0]: https://github.com/chainwayxyz/citrea/compare/v2.9.0...v2.10.0
 [v2.9.0]: https://github.com/chainwayxyz/citrea/compare/v2.8.0...v2.9.0
 [v2.8.0]: https://github.com/chainwayxyz/citrea/compare/v2.7.0...v2.8.0

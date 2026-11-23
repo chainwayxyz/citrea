@@ -1,6 +1,6 @@
 [package]
 name = "citrea-sp1-light-client"
-version = "3.0.0-rc.4"
+version = "3.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 publish = false
