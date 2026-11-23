@@ -57,8 +57,36 @@ impl Risc0Cutoff {
 // the SP1 batch key with activation height P0.last_l2_height before the first SP1 batch proof.
 // Also replace the network's u64::MAX V3 activation height in forks.rs.
 // Rebuild and pin the network's SP1 guests after filling these constants.
-// TODO(mainnet): fill L0 and P0 before releasing v3.
-const MAINNET_RISC0_CUTOFF: Option<Risc0Cutoff> = None;
+// Mainnet P0: light client proof output at L0 = 977169.
+const MAINNET_RISC0_CUTOFF: Option<Risc0Cutoff> = Some(Risc0Cutoff {
+    da_state: LatestDaState {
+        block_hash: [
+            127, 132, 28, 190, 152, 194, 195, 162, 126, 108, 128, 97, 43, 123, 251, 29, 101, 191,
+            255, 52, 88, 216, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ],
+        block_height: 977169,
+        total_work: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 90, 209, 128, 193, 4, 177,
+            88, 87, 87, 228, 25, 88,
+        ],
+        current_target_bits: 0x17021673,
+        epoch_start_time: 1794632570,
+        prev_11_timestamps: [
+            1795416100, 1795418363, 1795418631, 1795419250, 1795419490, 1795419467, 1795419825,
+            1795414665, 1795414858, 1795415527, 1795415256,
+        ],
+    },
+    l2_state_root: [
+        219, 111, 40, 239, 2, 21, 172, 25, 10, 177, 3, 222, 186, 177, 216, 68, 176, 66, 250, 147,
+        124, 28, 232, 129, 121, 210, 25, 172, 197, 118, 74, 213,
+    ],
+    last_l2_height: 15656000,
+    last_sequencer_commitment_index: 15656,
+    lc_state_root: [
+        70, 19, 121, 12, 233, 231, 163, 133, 3, 138, 234, 225, 158, 5, 217, 87, 184, 101, 124, 184,
+        7, 62, 157, 201, 216, 243, 84, 131, 65, 180, 204, 234,
+    ],
+});
 // Testnet P0: light client proof output at L0 = 161766.
 const TESTNET_RISC0_CUTOFF: Option<Risc0Cutoff> = Some(Risc0Cutoff {
     da_state: LatestDaState {
