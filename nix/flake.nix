@@ -142,7 +142,8 @@
             "--remap-path-prefix=/build=/build"
           ];
 
-          cargoExtraArgs = "--locked";
+          cargoExtraArgs = "--locked --package citrea --package citrea-cli";
+          doCheck = false;
 
           preBuild = ''
             export CITREA_WORKSPACE_MANIFEST="$PWD/Cargo.toml"
@@ -153,14 +154,15 @@
           '';
         };
 
+        # Cache dependencies for the release packages. Crane's default checks
+        # also build dev-dependencies, including a host jemalloc at -O0. Its
+        # strerror_r probe treats glibc's _FORTIFY_SOURCE warning as an error.
         cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
       in {
         packages = {
           citrea = craneLib.buildPackage (commonArgs // {
             inherit cargoArtifacts;
-            cargoExtraArgs = "--locked --package citrea --package citrea-cli";
-            doCheck = false;
 
             postInstall = ''
               strip $out/bin/citrea
