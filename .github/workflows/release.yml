@@ -7,6 +7,8 @@ permissions:
 
 on:
   push:
+    branches:
+      - "ci/release-nix-dependency-cache"
     tags:
       - "v*.*.*"
 
@@ -80,6 +82,7 @@ jobs:
           path: artifacts/
 
       - name: Attest build provenance
+        if: github.ref_type == 'tag'
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-path: |
@@ -87,6 +90,7 @@ jobs:
             artifacts/citrea-cli-${{ steps.vars.outputs.release_tag }}-${{ matrix.platform }}
 
   package:
+    if: github.ref_type == 'tag'
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -168,6 +172,7 @@ jobs:
             artifacts/citrea-cli-${{ github.ref_name }}-osx-arm64
 
   update-dockerhub:
+    if: github.ref_type == 'tag'
     needs: [package]
     runs-on: ubuntu-latest
     env:
