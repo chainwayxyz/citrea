@@ -172,13 +172,17 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
             return Ok(FeeHistory::default());
         }
 
-        // Reject before the per-block reward allocation below. See [`MAX_REWARD_PERCENTILE_COUNT`].
-        if reward_percentiles
-            .as_ref()
-            .map(|percentiles| percentiles.len() as u64)
-            > Some(MAX_REWARD_PERCENTILE_COUNT)
-        {
-            return Err(EthApiError::InvalidRewardPercentiles);
+        if let Some(percentiles) = &reward_percentiles {
+            // Reject invalid inputs before accessing storage or allocating per-block rewards.
+            // Equal adjacent values are allowed for compatibility with existing clients.
+            if percentiles.len() as u64 > MAX_REWARD_PERCENTILE_COUNT
+                || percentiles
+                    .iter()
+                    .any(|percentile| !(0.0..=100.0).contains(percentile))
+                || percentiles.windows(2).any(|pair| pair[0] > pair[1])
+            {
+                return Err(EthApiError::InvalidRewardPercentiles);
+            }
         }
 
         // See https://github.com/ethereum/go-ethereum/blob/2754b197c935ee63101cbbca2752338246384fec/eth/gasprice/feehistory.go#L218C8-L225
@@ -201,16 +205,6 @@ impl<C: sov_modules_api::Context> GasPriceOracle<C> {
         // Ensure that we would not be querying outside of genesis
         if end_block_plus_one < block_count {
             block_count = end_block_plus_one;
-        }
-
-        // If reward percentiles were specified, we
-        // need to validate that they are monotonically
-        // increasing and 0 <= p <= 100
-        // Note: The types used ensure that the percentiles are never < 0
-        if let Some(percentiles) = &reward_percentiles {
-            if percentiles.windows(2).any(|w| w[0] > w[1] || w[0] > 100.) {
-                return Err(EthApiError::InvalidRewardPercentiles);
-            }
         }
 
         // Fetch the headers and ensure we got all of them
@@ -479,5 +473,103 @@ mod tests {
     #[test]
     fn ignore_price_sanity() {
         assert_eq!(DEFAULT_IGNORE_PRICE, U256::from(2u64));
+    }
+
+    fn oracle_with_storage(
+        tmpdir: &std::path::Path,
+        with_genesis: bool,
+    ) -> (
+        GasPriceOracle<sov_modules_api::default_context::DefaultContext>,
+        WorkingSet<sov_state::ProverStorage>,
+    ) {
+        use sov_db::rocks_db_config::RocksdbConfig;
+        use sov_modules_api::Module;
+
+        let storage = sov_prover_storage_manager::new_orphan_storage(tmpdir).unwrap();
+        let mut working_set = WorkingSet::new(storage);
+        let evm = Evm::default();
+        if with_genesis {
+            // Minimal empty-state genesis (`EvmConfig::default` is test-only in citrea-evm).
+            let config: citrea_evm::EvmConfig = serde_json::from_value(serde_json::json!({
+                "data": [],
+                "chain_id": 5655,
+                "limit_contract_code_size": null,
+                "coinbase": "0x0000000000000000000000000000000000000000",
+                "starting_base_fee": 1_000_000_000u64,
+                "block_gas_limit": 30_000_000u64,
+                "base_fee_params": { "max_change_denominator": 8, "elasticity_multiplier": 2 },
+                "timestamp": 0,
+                "extra_data": "0x",
+                "nonce": 0,
+                "difficulty": "0x0",
+            }))
+            .unwrap();
+            evm.genesis(&config, &mut working_set);
+            evm.finalize_hook(&[0u8; 32], &mut working_set.accessory_state());
+        }
+        let ledger_db = LedgerDB::with_config(&RocksdbConfig::new(tmpdir, None, None)).unwrap();
+        let oracle = GasPriceOracle::new(
+            evm,
+            GasPriceOracleConfig::default(),
+            FeeHistoryCacheConfig::default(),
+            ledger_db,
+        );
+        (oracle, working_set)
+    }
+
+    #[test]
+    fn fee_history_rejects_invalid_reward_percentiles_before_storage() {
+        // No genesis: any storage read (`block_number_for_id`, history) would panic with
+        // "Head block must be set", so an `Err` proves validation runs before storage access.
+        let tmpdir = tempfile::tempdir().unwrap();
+        let (oracle, mut working_set) = oracle_with_storage(tmpdir.path(), false);
+
+        let cases: &[&[f64]] = &[
+            &[101.0],
+            &[150.0],
+            &[0.0, 150.0],
+            &[10.0, 101.0],
+            &[-1.0],
+            &[-5.0],
+            &[-1.0, 50.0],
+            &[50.0, 10.0],
+            &[f64::NAN],
+            &[f64::INFINITY],
+            &[0.0, f64::NAN],
+            &[0.0; MAX_REWARD_PERCENTILE_COUNT as usize + 1],
+        ];
+        for percentiles in cases {
+            let result = oracle.fee_history(
+                1,
+                BlockNumberOrTag::Latest,
+                Some(percentiles.to_vec()),
+                &mut working_set,
+            );
+            assert!(
+                matches!(result, Err(EthApiError::InvalidRewardPercentiles)),
+                "percentiles {percentiles:?} not rejected before storage access"
+            );
+        }
+    }
+
+    #[test]
+    fn fee_history_accepts_valid_reward_percentiles() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let (oracle, mut working_set) = oracle_with_storage(tmpdir.path(), true);
+
+        let cases: &[&[f64]] = &[&[100.0], &[0.0, 50.0, 100.0], &[0.0, 0.0, 100.0], &[]];
+        for percentiles in cases {
+            let history = oracle
+                .fee_history(
+                    1,
+                    BlockNumberOrTag::Latest,
+                    Some(percentiles.to_vec()),
+                    &mut working_set,
+                )
+                .unwrap_or_else(|e| panic!("percentiles {percentiles:?} rejected: {e:?}"));
+            let reward = history.reward.unwrap();
+            assert_eq!(reward.len(), 1);
+            assert_eq!(reward[0].len(), percentiles.len());
+        }
     }
 }

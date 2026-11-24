@@ -4757,8 +4757,10 @@ dependencies = [
  "sov-db",
  "sov-ledger-rpc",
  "sov-modules-api",
+ "sov-prover-storage-manager",
  "sov-rollup-interface",
  "sov-state",
+ "tempfile",
  "tokio",
  "tracing",
 ]

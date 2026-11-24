@@ -51,4 +51,6 @@ sov-rollup-interface = { path = "../sovereign-sdk/rollup-interface", features = 
 sov-state = { path = "../sovereign-sdk/module-system/sov-state", default-features = false }
 
 [dev-dependencies]
+sov-prover-storage-manager = { path = "../sovereign-sdk/full-node/sov-prover-storage-manager", features = ["test-utils"] }
+tempfile = { workspace = true }
 tokio = { workspace = true }

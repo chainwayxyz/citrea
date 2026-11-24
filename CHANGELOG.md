@@ -1,5 +1,7 @@
 # Changelog
 ## [Unreleased]
+### Changed
+- fix(rpc): validate all `eth_feeHistory` reward percentiles before reading block history.
 
 
 ## [v3.0.0](2026-11-23)
