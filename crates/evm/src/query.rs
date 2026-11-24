@@ -1473,8 +1473,8 @@ impl<C: sov_modules_api::Context> Evm<C> {
 
     /// Returns logs matching given filter object.
     ///
-    /// Handler for `eth_getLogs`
-    #[rpc_method(name = "eth_getLogs")]
+    /// Called by the `eth_getLogs` handler in `ethereum-rpc`, which limits how many scans run at
+    /// once and runs them off the async worker threads. It is not registered as an RPC method here.
     pub fn eth_get_logs(
         &self,
         filter: Filter,

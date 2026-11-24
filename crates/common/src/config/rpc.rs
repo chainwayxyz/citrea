@@ -77,6 +77,11 @@ const fn default_max_tracing_requests() -> usize {
 }
 
 #[inline]
+const fn default_max_log_requests() -> usize {
+    4
+}
+
+#[inline]
 const fn default_gas_cap() -> u64 {
     // Keep in sync with `citrea_evm::RPC_DEFAULT_GAS_CAP`.
     100_000_000
@@ -122,6 +127,11 @@ pub struct RpcConfig {
     /// Together with `trace_memory_limit_mb` this bounds the memory tracing can use at once.
     #[serde(default = "default_max_tracing_requests")]
     pub max_tracing_requests: usize,
+    /// Maximum number of block-range log scans (`eth_getLogs`, `eth_getFilterLogs`,
+    /// `eth_getFilterChanges`) executing at the same time; the rest queue. This keeps a flood of
+    /// log queries from taking the CPU and disk that L2 block sync needs.
+    #[serde(default = "default_max_log_requests")]
+    pub max_log_requests: usize,
     /// Gas cap for `eth_call` and `debug_traceCall`, decoupled from the block gas limit so complex
     /// read-only calls can run above it while still bounding EVM memory and CPU per call. Each RPC
     /// server owns an immutable `citrea_evm::RpcGasCap` constructed from this value and passes it
@@ -172,6 +182,7 @@ impl Default for RpcConfig {
             trace_memory_limit_mb: default_trace_memory_limit_mb(),
             trace_cache_limit_mb: default_trace_cache_limit_mb(),
             max_tracing_requests: default_max_tracing_requests(),
+            max_log_requests: default_max_log_requests(),
             gas_cap: default_gas_cap(),
             stale_filter_ttl: None,
             proving_jobs_limit: default_proving_jobs_limit(),
@@ -237,6 +248,10 @@ impl FromEnv for RpcConfig {
                 .ok()
                 .and_then(|val| val.parse().ok())
                 .unwrap_or_else(default_max_tracing_requests),
+            max_log_requests: read_env("RPC_MAX_LOG_REQUESTS")
+                .ok()
+                .and_then(|val| val.parse().ok())
+                .unwrap_or_else(default_max_log_requests),
             gas_cap: read_env("RPC_GAS_CAP")
                 .ok()
                 .and_then(|val| val.parse().ok())
@@ -288,6 +303,7 @@ impl fmt::Display for RpcConfig {
             .field("trace_memory_limit_mb", &self.trace_memory_limit_mb)
             .field("trace_cache_limit_mb", &self.trace_cache_limit_mb)
             .field("max_tracing_requests", &self.max_tracing_requests)
+            .field("max_log_requests", &self.max_log_requests)
             .field("gas_cap", &self.gas_cap)
             .field("stale_filter_ttl", &self.stale_filter_ttl)
             .field("proving_jobs_limit", &self.proving_jobs_limit)
@@ -310,6 +326,7 @@ mod tests {
         assert_eq!(cfg.trace_memory_limit_mb, default_trace_memory_limit_mb());
         assert_eq!(cfg.trace_cache_limit_mb, default_trace_cache_limit_mb());
         assert_eq!(cfg.max_tracing_requests, default_max_tracing_requests());
+        assert_eq!(cfg.max_log_requests, default_max_log_requests());
         assert_eq!(cfg.gas_cap, default_gas_cap());
         // the bug this guards against: 0 means "unlimited" / "empty cache"
         assert_ne!(cfg.trace_memory_limit_mb, 0);

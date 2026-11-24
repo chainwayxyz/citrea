@@ -1,6 +1,6 @@
 //! Snapshot related logic
 //!
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use metrics::counter;
 
@@ -13,7 +13,9 @@ use crate::{Operation, Schema, SchemaBatch, SchemaKey, SchemaValue, SeekKeyEncod
 /// This makes rollbacking and atomicity of writes easier.
 #[derive(Debug)]
 pub struct DbTransaction {
-    cache: Mutex<SchemaBatch>,
+    /// Read-write lock so that readers do not block each other. Read methods hold the read lock
+    /// for the whole lookup, including the RocksDB read, and all RPC handlers share one instance.
+    cache: RwLock<SchemaBatch>,
     db: Arc<DB>,
 }
 
@@ -21,7 +23,7 @@ impl DbTransaction {
     /// Create new [`DbTransaction`]
     pub fn new(db: Arc<DB>) -> Self {
         Self {
-            cache: Mutex::new(SchemaBatch::default()),
+            cache: RwLock::new(SchemaBatch::default()),
             db,
         }
     }
@@ -33,7 +35,7 @@ impl DbTransaction {
         value: &impl ValueCodec<S>,
     ) -> anyhow::Result<()> {
         self.cache
-            .lock()
+            .write()
             .expect("Local SchemaBatch lock must not be poisoned")
             .put(key, value)
     }
@@ -41,7 +43,7 @@ impl DbTransaction {
     /// Delete given key from transaction
     pub fn delete<S: Schema>(&self, key: &impl KeyCodec<S>) -> anyhow::Result<()> {
         self.cache
-            .lock()
+            .write()
             .expect("Local SchemaBatch lock must not be poisoned")
             .delete(key)
     }
@@ -50,7 +52,7 @@ impl DbTransaction {
     pub fn write_many(&self, batch: SchemaBatch) -> anyhow::Result<()> {
         let mut cache = self
             .cache
-            .lock()
+            .write()
             .expect("Local SchemaBatch lock must not be poisoned");
         cache.merge(batch);
         Ok(())
@@ -61,7 +63,7 @@ impl DbTransaction {
         // Hold local cache lock explicitly, so reads are atomic
         let local_cache = self
             .cache
-            .lock()
+            .read()
             .expect("SchemaBatch lock should not be poisoned");
 
         // 1. Check in cache
@@ -78,7 +80,7 @@ impl DbTransaction {
     pub fn get_largest<S: Schema>(&self) -> anyhow::Result<Option<(S::Key, S::Value)>> {
         let local_cache = self
             .cache
-            .lock()
+            .read()
             .expect("SchemaBatch lock must not be poisoned");
         let local_cache_iter = local_cache.iter::<S>();
 
@@ -106,7 +108,7 @@ impl DbTransaction {
         let seek_key = seek_key.encode_seek_key()?;
         let local_cache = self
             .cache
-            .lock()
+            .read()
             .expect("Local cache lock must not be poisoned");
         let local_cache_iter = local_cache.iter_range::<S>(seek_key.clone());
 

@@ -44,7 +44,7 @@ use sov_modules_api::WorkingSet;
 use sov_rollup_interface::services::da::DaService;
 use sov_state::storage::NativeStorage;
 use tokio::join;
-use tokio::sync::{broadcast, Semaphore};
+use tokio::sync::{broadcast, OwnedSemaphorePermit, Semaphore};
 use trace::{debug_trace_by_block_number, handle_debug_trace_chain};
 
 /// Maximum storage keys per `eth_getProof` request, matching Geth's `maxGetProofKeys`.
@@ -74,8 +74,7 @@ pub struct SyncStatus {
 
 #[rpc(server)]
 pub trait EthereumRpc {
-    #[method(name = "eth_call")]
-    #[blocking]
+    #[method(name = "eth_call", blocking)]
     fn eth_call(
         &self,
         request: TransactionRequest,
@@ -89,28 +88,23 @@ pub trait EthereumRpc {
     fn web3_client_version(&self) -> RpcResult<String>;
 
     /// Returns Keccak-256 hash of the given data.
-    #[method(name = "web3_sha3")]
-    #[blocking]
+    #[method(name = "web3_sha3", blocking)]
     fn web3_sha3(&self, data: Bytes) -> RpcResult<B256>;
 
     /// Returns the current gas price.
-    #[method(name = "eth_gasPrice")]
-    #[blocking]
+    #[method(name = "eth_gasPrice", blocking)]
     fn eth_gas_price(&self) -> RpcResult<U256>;
 
     /// Returns the maximum fee per gas.
-    #[method(name = "eth_maxFeePerGas")]
-    #[blocking]
+    #[method(name = "eth_maxFeePerGas", blocking)]
     fn eth_max_fee_per_gas(&self) -> RpcResult<U256>;
 
     /// Returns the maximum priority fee per gas.
-    #[method(name = "eth_maxPriorityFeePerGas")]
-    #[blocking]
+    #[method(name = "eth_maxPriorityFeePerGas", blocking)]
     fn eth_max_priority_fee_per_gas(&self) -> RpcResult<U256>;
 
     /// Returns fee history.
-    #[method(name = "eth_feeHistory")]
-    #[blocking]
+    #[method(name = "eth_feeHistory", blocking)]
     fn eth_fee_history(
         &self,
         block_count: Index,
@@ -120,8 +114,7 @@ pub trait EthereumRpc {
 
     /// Returns zkproof by EIP-1186.
     /// At most 1024 storage keys may be requested.
-    #[method(name = "eth_getProof")]
-    #[blocking]
+    #[method(name = "eth_getProof", blocking)]
     fn eth_get_proof(
         &self,
         address: Address,
@@ -216,6 +209,10 @@ pub trait EthereumRpc {
     #[subscription(name = "eth_subscribe" => "eth_subscription", unsubscribe = "eth_unsubscribe", item = Value)]
     async fn subscribe_eth(&self, topic: String, filter: Option<Filter>) -> SubscriptionResult;
 
+    /// Returns logs matching the given filter. At most `max_log_requests` log scans run at once.
+    #[method(name = "eth_getLogs")]
+    async fn eth_get_logs(&self, filter: Filter) -> RpcResult<Vec<Log>>;
+
     /// Install a new filter.
     #[method(name = "eth_newFilter")]
     async fn new_filter(&self, filter: Filter) -> RpcResult<FilterId>;
@@ -251,7 +248,7 @@ fn to_eth_rpc_error(err: impl ToString) -> ErrorObjectOwned {
     to_jsonrpsee_error_object(ETH_RPC_ERROR, err)
 }
 
-/// How long a `debug_trace*` request waits for a tracing permit before giving up.
+/// How long a `debug_trace*` or log-scan request waits for a permit before giving up.
 ///
 /// Half the RPC timeout, so a request that is admitted still keeps a comparable share of the
 /// window to actually run. Waiting nearly the whole timeout (e.g. 29s of 30s) admitted requests
@@ -259,6 +256,29 @@ fn to_eth_rpc_error(err: impl ToString) -> ErrorObjectOwned {
 /// layer had already timed out and dropped. Floored at 1s so a tiny configured timeout still waits.
 fn tracing_queue_timeout(rpc_timeout_secs: u64) -> Duration {
     Duration::from_secs((rpc_timeout_secs / 2).max(1))
+}
+
+const TRACING_BUSY_MSG: &str =
+    "timed out waiting for a tracing slot, too many concurrent debug_trace requests";
+const LOG_REQUESTS_BUSY_MSG: &str =
+    "timed out waiting for a log query slot, too many concurrent eth_getLogs and filter requests";
+
+/// Waits up to `queue_timeout` for one of `permits`, and returns `busy_msg` as an RPC error if
+/// none frees up in time.
+///
+/// Waiting is asynchronous on purpose: a queued request costs a suspended future rather than a
+/// thread, and if the caller goes away while it is queued the future is dropped and the slot is
+/// never spent on work nobody will read.
+async fn acquire_permit(
+    permits: &Arc<Semaphore>,
+    queue_timeout: Duration,
+    busy_msg: &'static str,
+) -> RpcResult<OwnedSemaphorePermit> {
+    let permit = tokio::time::timeout(queue_timeout, permits.clone().acquire_owned())
+        .await
+        .map_err(|_| to_eth_rpc_error(busy_msg))?
+        .expect("RPC permit semaphores are never closed");
+    Ok(permit)
 }
 
 pub struct EthereumRpcServerImpl<C, Da>
@@ -274,8 +294,12 @@ where
     /// Caps how many debug_trace* requests run at once. With `trace_memory_limit_mb` this is what
     /// bounds the memory tracing can hold: a request that cannot get a permit waits for one.
     tracing_permits: Arc<Semaphore>,
-    /// How long a request waits for a permit before giving up. Kept below the RPC timeout so a
-    /// caller that will not be served gets a clear error rather than a timeout.
+    /// Caps how many block-range log scans (`eth_getLogs`, `eth_getFilterLogs`,
+    /// `eth_getFilterChanges`) run at once, so a flood of log queries cannot take the CPU and disk
+    /// that L2 block sync needs. The handler holds its permit until the scan returns.
+    log_permits: Arc<Semaphore>,
+    /// How long a tracing or log-scan request waits for a permit before giving up. Kept below the
+    /// RPC timeout so a caller that will not be served gets a clear error rather than a timeout.
     tracing_queue_timeout: Duration,
     l2_block_rx: Option<broadcast::Receiver<u64>>,
     max_sync_send_timeout_ms: u64,
@@ -295,6 +319,7 @@ where
         enable_js_tracer: bool,
         trace_memory_limit_mb: u64,
         max_tracing_requests: usize,
+        max_log_requests: usize,
         timeout: u64,
         l2_block_rx: Option<broadcast::Receiver<u64>>,
         max_sync_send_timeout_ms: u64,
@@ -312,6 +337,9 @@ where
             tracing_permits: Arc::new(Semaphore::new(
                 max_tracing_requests.clamp(1, Semaphore::MAX_PERMITS),
             )),
+            log_permits: Arc::new(Semaphore::new(
+                max_log_requests.clamp(1, Semaphore::MAX_PERMITS),
+            )),
             tracing_queue_timeout: tracing_queue_timeout(timeout),
             l2_block_rx,
             max_sync_send_timeout_ms,
@@ -320,26 +348,17 @@ where
     }
 
     /// Runs a tracing request on the blocking pool while holding one of the tracing permits.
-    ///
-    /// Waiting for a permit is asynchronous on purpose: a queued request costs a suspended future
-    /// rather than one of the runtime's blocking threads, and if the caller goes away while it is
-    /// queued the future is dropped and the slot is never spent on work nobody will read.
     async fn with_tracing_permit<T, F>(&self, trace: F) -> RpcResult<T>
     where
         T: Send + 'static,
         F: FnOnce() -> RpcResult<T> + Send + 'static,
     {
-        let permit = tokio::time::timeout(
+        let permit = acquire_permit(
+            &self.tracing_permits,
             self.tracing_queue_timeout,
-            self.tracing_permits.clone().acquire_owned(),
+            TRACING_BUSY_MSG,
         )
-        .await
-        .map_err(|_| {
-            to_eth_rpc_error(
-                "timed out waiting for a tracing slot, too many concurrent debug_trace requests",
-            )
-        })?
-        .expect("tracing semaphore is never closed");
+        .await?;
 
         tokio::task::spawn_blocking(move || {
             // The permit is tied to the work, not to this future. Blocking tasks cannot be
@@ -350,6 +369,18 @@ where
         })
         .await
         .map_err(to_eth_rpc_error)?
+    }
+
+    /// Waits for one of the log-scan permits. The caller keeps the permit until its scan returns:
+    /// the scan runs in `block_in_place`, so the future cannot be dropped while it runs, and a
+    /// client that disconnects cannot free a slot that is still in use.
+    async fn log_permit(&self) -> RpcResult<OwnedSemaphorePermit> {
+        acquire_permit(
+            &self.log_permits,
+            self.tracing_queue_timeout,
+            LOG_REQUESTS_BUSY_MSG,
+        )
+        .await
     }
 }
 
@@ -965,6 +996,17 @@ where
         Ok(())
     }
 
+    async fn eth_get_logs(&self, filter: Filter) -> RpcResult<Vec<Log>> {
+        let _permit = self.log_permit().await?;
+        let storage = self.ethereum.storage.clone();
+        // The scan reads up to `max_blocks_per_filter` blocks. block_in_place moves this worker's
+        // other tasks to another thread, so /metrics, other RPC calls and L2 sync keep running.
+        tokio::task::block_in_place(|| {
+            let mut working_set = WorkingSet::new(storage);
+            Evm::<C>::default().eth_get_logs(filter, &mut working_set)
+        })
+    }
+
     async fn new_filter(&self, filter: Filter) -> RpcResult<FilterId> {
         let evm = Evm::<C>::default();
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
@@ -991,6 +1033,9 @@ where
     }
 
     async fn get_filter_changes(&self, id: FilterId) -> RpcResult<FilterChanges<Transaction>> {
+        // Take the permit before `filter_changes` moves the filter cursor, so a busy error does
+        // not skip any blocks.
+        let _permit = self.log_permit().await?;
         let evm = Evm::<C>::default();
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
         Ok(self
@@ -1001,6 +1046,7 @@ where
     }
 
     async fn get_filter_logs(&self, id: FilterId) -> RpcResult<Vec<Log>> {
+        let _permit = self.log_permit().await?;
         let evm = Evm::<C>::default();
         let mut working_set = WorkingSet::new(self.ethereum.storage.clone());
         Ok(self
@@ -1115,6 +1161,7 @@ where
         rpc_config.enable_js_tracer,
         rpc_config.trace_memory_limit_mb,
         rpc_config.max_tracing_requests,
+        rpc_config.max_log_requests,
         rpc_config.timeout,
         l2_block_rx,
         rpc_config.max_sync_send_timeout_ms,
@@ -1164,5 +1211,25 @@ mod tests {
         // floored so a tiny or zero configured timeout still waits briefly
         assert_eq!(tracing_queue_timeout(1), Duration::from_secs(1));
         assert_eq!(tracing_queue_timeout(0), Duration::from_secs(1));
+    }
+
+    #[tokio::test]
+    async fn acquire_permit_returns_busy_error_while_all_permits_are_held() {
+        let permits = Arc::new(Semaphore::new(1));
+        let held = permits.clone().acquire_owned().await.unwrap();
+
+        let err = acquire_permit(&permits, Duration::from_millis(50), LOG_REQUESTS_BUSY_MSG)
+            .await
+            .unwrap_err();
+        assert!(err
+            .data()
+            .is_some_and(|data| data.get().contains(LOG_REQUESTS_BUSY_MSG)));
+
+        drop(held);
+        assert!(
+            acquire_permit(&permits, Duration::from_millis(50), LOG_REQUESTS_BUSY_MSG)
+                .await
+                .is_ok()
+        );
     }
 }

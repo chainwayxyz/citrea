@@ -289,14 +289,16 @@ impl CitreaFilter {
                 // Note: we need to fetch the block hashes from inclusive range
                 // [start_block..latest_block_number]
                 let end_block = latest_block_number;
-                let block_hashes = evm
-                    .sealed_headers_range(start_block..=end_block, working_set)
-                    .map_err(|_| {
-                        EthApiError::HeaderRangeNotFound(start_block.into(), end_block.into())
-                    })?
-                    .iter()
-                    .map(|h| h.hash())
-                    .collect::<Vec<_>>();
+                // Scans run in block_in_place (see `get_logs_in_block_range` below).
+                let block_hashes = tokio::task::block_in_place(|| {
+                    evm.sealed_headers_range(start_block..=end_block, working_set)
+                })
+                .map_err(|_| {
+                    EthApiError::HeaderRangeNotFound(start_block.into(), end_block.into())
+                })?
+                .iter()
+                .map(|h| h.hash())
+                .collect::<Vec<_>>();
 
                 Ok(FilterChanges::Hashes(block_hashes))
             }
@@ -320,13 +322,19 @@ impl CitreaFilter {
                 if from_block_number > to_block_number {
                     return Ok(FilterChanges::Empty);
                 }
-                let logs = evm.get_logs_in_block_range(
-                    working_set,
-                    &filter,
-                    from_block_number,
-                    to_block_number,
-                    get_max_logs_per_response(),
-                )?;
+                // The scan can read up to `max_blocks_per_filter` blocks. block_in_place moves
+                // this worker's other tasks to another thread, so they keep running. There is no
+                // `.await` between the cursor move above and the end of the scan, so an RPC
+                // timeout cannot drop the response after the cursor moved.
+                let logs = tokio::task::block_in_place(|| {
+                    evm.get_logs_in_block_range(
+                        working_set,
+                        &filter,
+                        from_block_number,
+                        to_block_number,
+                        get_max_logs_per_response(),
+                    )
+                })?;
                 Ok(FilterChanges::Logs(logs))
             }
         }
@@ -353,6 +361,7 @@ impl CitreaFilter {
             }
         };
 
-        evm.logs_for_filter(filter, working_set)
+        // Scans run in block_in_place (see `filter_changes`).
+        tokio::task::block_in_place(|| evm.logs_for_filter(filter, working_set))
     }
 }
