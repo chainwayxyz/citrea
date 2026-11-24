@@ -157,7 +157,9 @@
         # Cache dependencies for the release packages. Crane's default checks
         # also build dev-dependencies, including a host jemalloc at -O0. Its
         # strerror_r probe treats glibc's _FORTIFY_SOURCE warning as an error.
-        cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+        cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
+          buildPhaseCargoCommand = "cargoWithProfile build ${commonArgs.cargoExtraArgs}";
+        });
 
       in {
         packages = {
