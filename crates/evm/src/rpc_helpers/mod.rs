@@ -9,8 +9,7 @@ pub use filter::*;
 pub use log_utils::*;
 use reth_rpc_eth_types::{EthApiError, EthResult};
 use revm::context::BlockEnv;
-use revm::state::{Account, AccountStatus};
-use revm::{Database, DatabaseCommit};
+use revm::Database;
 
 mod filter;
 mod log_utils;
@@ -39,14 +38,12 @@ pub(crate) fn apply_state_overrides<C: sov_modules_api::Context>(
 }
 
 /// Applies a single [`AccountOverride`] to the [`EvmDb`].
-/// Ref https://github.com/paradigmxyz/reth/blob/cbdb81069ff9c6d9e3680ad802878c5f0a5bc97f/crates/rpc/rpc-eth-types/src/revm_utils.rs#L276
+/// See <https://github.com/alloy-rs/evm/blob/v0.39.0/crates/evm/src/overrides.rs#L125-L194>.
 pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
     account: Address,
     account_override: AccountOverride,
     db: &mut EvmDb<C>,
 ) -> EthResult<()> {
-    // we need to fetch the account via the `DatabaseRef` to not update the state of the account,
-    // which is modified via `Database::basic_ref`
     let mut account_info = db.basic(account)?.unwrap_or_default();
 
     if let Some(nonce) = account_override.nonce {
@@ -67,59 +64,27 @@ pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
         account_info.balance = balance;
     }
 
-    db.override_account(&account, account_info.clone().into());
-
-    // Create a new account marked as touched
-    let mut acc = revm::state::Account {
-        info: account_info,
-        status: AccountStatus::Touched,
-        storage: HashMap::default(),
-    };
-
-    // We ensure that not both state and state_diff are set.
-    // If state is set, we must mark the account as "NewlyCreated", so that the old storage
-    // isn't read from
     match (account_override.state, account_override.state_diff) {
         (Some(_), Some(_)) => return Err(EthApiError::BothStateAndStateDiffInOverride(account)),
-        (None, None) => {
-            // nothing to do
-        }
-        (Some(new_account_state), None) => {
-            // Destroy the account to ensure that its storage is cleared
-            db.commit(HashMap::from_iter([(
-                account,
-                Account {
-                    status: AccountStatus::SelfDestructed | AccountStatus::Touched,
-                    ..Default::default()
-                },
-            )]));
-            // Mark the account as created to ensure that old storage is not read
-            acc.mark_created();
-            db.override_set_account_storage(&account, new_account_state);
-        }
-        (None, Some(account_state_diff)) => {
-            db.override_set_account_storage(&account, account_state_diff);
-        }
-    };
+        // `state` replaces the whole storage, so the replacement takes precedence over the working
+        // set even when the requested slot is absent from the replacement.
+        (Some(state), None) => db.replace_account_storage(account, state),
+        (None, Some(diff)) => db.override_set_account_storage(&account, diff),
+        (None, None) => {}
+    }
 
-    db.commit(HashMap::from_iter([(account, acc)]));
+    db.override_account(&account, account_info.into());
 
     Ok(())
 }
 
-/// Applies all instances of [`BlockOverride`] to the [`EvmDb`].
+/// Applies [`BlockOverrides`] to the block environment and database.
 pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
     block_env: &mut BlockEnv,
-    block_overrides: &mut BlockOverrides,
+    block_overrides: BlockOverrides,
     db: &mut EvmDb<C>,
+    canonical_block: u64,
 ) {
-    if let Some(block_hashes) = block_overrides.block_hash.take() {
-        // override block hashes
-        for (num, hash) in block_hashes {
-            db.override_block_hash(num, hash);
-        }
-    }
-
     let BlockOverrides {
         number,
         time,
@@ -127,9 +92,14 @@ pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
         coinbase,
         random,
         base_fee,
-        block_hash: _,
+        block_hash,
         difficulty: _,
-    } = *block_overrides;
+    } = block_overrides;
+    db.override_block_hashes(
+        block_hash.unwrap_or_default(),
+        number.map(|_| block_env.number),
+        canonical_block,
+    );
     if let Some(number) = number {
         block_env.number = number.saturating_to();
     }

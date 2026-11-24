@@ -1,9 +1,13 @@
 use core::error::Error;
 #[cfg(feature = "native")]
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
+#[cfg(feature = "native")]
+use alloy_primitives::map::{AddressMap, B256HashMap};
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
 use revm::context::DBErrorMarker;
+#[cfg(feature = "native")]
+use revm::primitives::BLOCK_HASH_HISTORY;
 use revm::state::{AccountInfo as ReVmAccountInfo, Bytecode};
 use revm::Database;
 use sov_modules_api::{SpecId, StateMapAccessor, WorkingSet};
@@ -71,10 +75,25 @@ fn verify_code(code_hash: B256, code: &Bytecode) -> Result<(), DBError> {
     Ok(())
 }
 
+#[cfg(feature = "native")]
+struct BlockHashOverrideBase {
+    original_number: u64,
+    last_canonical_block: u64,
+}
+
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) evm: &'a Evm<C>,
     pub(crate) working_set: &'a mut WorkingSet<C::Storage>,
     pub(crate) citrea_spec: SpecId,
+    /// Full storage replacements for RPC simulations. Omitted slots read as zero.
+    #[cfg(feature = "native")]
+    storage_overrides: AddressMap<B256HashMap<B256>>,
+    /// Block hashes supplied by a block override.
+    #[cfg(feature = "native")]
+    block_hash_overrides: BTreeMap<u64, B256>,
+    /// Original block context for resolving unsupplied hashes when the block number is overridden.
+    #[cfg(feature = "native")]
+    override_block_hash_base: Option<BlockHashOverrideBase>,
 }
 
 impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
@@ -87,12 +106,33 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
             evm,
             working_set,
             citrea_spec,
+            #[cfg(feature = "native")]
+            storage_overrides: AddressMap::default(),
+            #[cfg(feature = "native")]
+            block_hash_overrides: BTreeMap::new(),
+            #[cfg(feature = "native")]
+            override_block_hash_base: None,
         }
     }
 
     #[cfg(feature = "native")]
-    pub(crate) fn override_block_hash(&mut self, number: u64, hash: B256) {
-        self.evm.blockhash_set(number, &hash, self.working_set);
+    pub(crate) fn override_block_hashes(
+        &mut self,
+        hashes: BTreeMap<u64, B256>,
+        original_number: Option<u64>,
+        last_canonical_block: u64,
+    ) {
+        self.block_hash_overrides = hashes;
+        self.override_block_hash_base =
+            original_number.map(|original_number| BlockHashOverrideBase {
+                original_number,
+                last_canonical_block,
+            });
+    }
+
+    #[cfg(feature = "native")]
+    pub(crate) fn replace_account_storage(&mut self, account: Address, state: B256HashMap<B256>) {
+        self.storage_overrides.insert(account, state);
     }
 
     #[cfg(feature = "native")]
@@ -104,7 +144,7 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
     pub(crate) fn override_set_account_storage(
         &mut self,
         account: &Address,
-        state_diff: HashMap<B256, B256, alloy_primitives::map::FbBuildHasher<32>>,
+        state_diff: B256HashMap<B256>,
     ) {
         for (slot, value) in state_diff {
             self.evm.storage_set(
@@ -140,6 +180,12 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
     }
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
+        #[cfg(feature = "native")]
+        if let Some(storage) = self.storage_overrides.get(&address) {
+            let value = storage.get(&B256::from(index)).copied().unwrap_or_default();
+            return Ok(U256::from_be_bytes(value.0));
+        }
+
         let storage_value = self
             .evm
             .storage_get(&address, &index, self.working_set)
@@ -149,6 +195,30 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
     }
 
     fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
+        #[cfg(feature = "native")]
+        {
+            if let Some(hash) = self.block_hash_overrides.get(&number) {
+                return Ok(*hash);
+            }
+            if let Some(base) = &self.override_block_hash_base {
+                // Retained state can still contain a hash after its native header is pruned.
+                // The modulo-indexed buffer only identifies heights in the original window.
+                let distance = base.original_number.saturating_sub(number);
+                if (1..=BLOCK_HASH_HISTORY).contains(&distance) {
+                    if let Some(hash) = self.evm.blockhash_get(number, self.working_set) {
+                        return Ok(hash);
+                    }
+                }
+                return Ok(if number <= base.last_canonical_block {
+                    self.evm
+                        .block_hash_from_number(number, self.working_set)
+                        .unwrap_or_default()
+                } else {
+                    B256::ZERO
+                });
+            }
+        }
+
         // no need to check block number ranges
         // revm already checks it
 

@@ -759,8 +759,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // the real block gas limit so the `GASLIMIT` opcode still reports the chain's value.
         let gas_cap = gas_cap.get();
 
-        if let Some(mut block_overrides) = block_overrides {
-            apply_block_overrides(&mut block_env, &mut block_overrides, &mut evm_db);
+        if let Some(block_overrides) = block_overrides {
+            let canonical_block = block_num - u64::from(block_number == BlockNumberOrTag::Pending);
+            apply_block_overrides(
+                &mut block_env,
+                block_overrides,
+                &mut evm_db,
+                canonical_block,
+            );
         }
 
         if let Some(state_overrides) = state_overrides {
@@ -1746,8 +1752,14 @@ impl<C: sov_modules_api::Context> Evm<C> {
         // the real block gas limit so the `GASLIMIT` opcode still reports the chain's value.
         let gas_cap = gas_cap.get();
 
-        if let Some(mut block_overrides) = block_overrides {
-            apply_block_overrides(&mut block_env, &mut block_overrides, &mut evm_db);
+        if let Some(block_overrides) = block_overrides {
+            let canonical_block = block_num - u64::from(block_number == BlockNumberOrTag::Pending);
+            apply_block_overrides(
+                &mut block_env,
+                block_overrides,
+                &mut evm_db,
+                canonical_block,
+            );
         }
 
         let from = request.from.unwrap_or_default();

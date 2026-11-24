@@ -1,5 +1,7 @@
 # Changelog
 ## [Unreleased]
+### Changed
+- fix(rpc): apply complete storage replacements (`state`) and resolve block hashes by height when simulating with block overrides.
 
 
 ## [v3.0.0](2026-11-23)

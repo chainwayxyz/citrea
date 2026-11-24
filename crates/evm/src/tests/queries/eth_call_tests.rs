@@ -14,8 +14,11 @@ use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{Context, Module, Spec, WorkingSet};
+use sov_modules_api::{
+    AccessoryWorkingSet, Context, Module, Spec, StateReaderAndWriter, StateVecAccessor, WorkingSet,
+};
 use sov_rollup_interface::spec::SpecId;
+use sov_state::codec::RlpCodec;
 
 use crate::smart_contracts::{BlockHashContract, SimpleStorageContract};
 use crate::tests::get_test_seq_pub_key;
@@ -648,6 +651,38 @@ fn test_call_with_state_overrides() {
         U256::from(15).to_be_bytes_vec()
     );
 
+    for (state, state_diff, expected) in [
+        (Some(Default::default()), None, 0),
+        (None, Some(Default::default()), 478),
+    ] {
+        let mut working_set = WorkingSet::new(prover_storage.clone());
+        let overrides = AddressMap::from_iter([(
+            contract_address,
+            AccountOverride {
+                state,
+                state_diff,
+                ..Default::default()
+            },
+        )]);
+        let result = evm
+            .get_call_inner(
+                TransactionRequest {
+                    from: Some(signer.address()),
+                    to: Some(TxKind::Call(contract_address)),
+                    input: TransactionInput::new(contract.get_call_data().into()),
+                    ..Default::default()
+                },
+                None,
+                Some(overrides),
+                None,
+                &mut working_set,
+                &ledger_db,
+                get_fork_fn_latest(),
+            )
+            .unwrap();
+        assert_eq!(result, U256::from(expected).to_be_bytes_vec());
+    }
+
     // Start with a fresh working set, because the previous one was for a separate RPC call.
     let mut working_set = WorkingSet::new(prover_storage);
 
@@ -864,6 +899,105 @@ fn test_call_with_block_overrides() {
         .unwrap();
     let expected_hash = Bytes::from_iter([2; 32]);
     assert_eq!(call_result, expected_hash);
+}
+
+/// A `number` override moves the window `BLOCKHASH` reads from. Unsupplied hashes come from
+/// retained state or canonical headers up to the original block and resolve to zero after it.
+#[test]
+fn test_call_block_hash_overrides_by_height() {
+    // Blocks 0..=3; at the head's state the ring buffer holds the hashes of blocks 0..=2.
+    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SpecId::latest());
+    let latest = evm.last_sealed_header(&mut working_set).number;
+    assert_eq!(latest, 3);
+    let canonical: Vec<B256> = (0..=latest)
+        .map(|n| evm.block_hash_from_number(n, &mut working_set).unwrap())
+        .collect();
+
+    // Pruning removes native block entries independently of hashes in retained EVM state.
+    let blocks = StateVecAccessor::<_, _, AccessoryWorkingSet<'_, <C as Spec>::Storage>>::prefix(
+        &evm.blocks,
+    );
+    working_set
+        .accessory_state()
+        .delete_value::<usize, usize, _>(&blocks.extended(b"e"), &1, &RlpCodec);
+    assert_eq!(evm.block_hash_from_number(1, &mut working_set), None);
+
+    // PUSH1 0, CALLDATALOAD, BLOCKHASH, PUSH1 0, MSTORE, PUSH1 32, PUSH1 0, RETURN
+    let reader = Address::repeat_byte(0xB1);
+    let reader_code = Bytes::from_static(&[
+        0x60, 0x00, 0x35, 0x40, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3,
+    ]);
+    let mut blockhash = |block: BlockNumberOrTag, overrides: BlockOverrides, height: u64| {
+        let state = AddressMap::from_iter([(
+            reader,
+            AccountOverride {
+                code: Some(reader_code.clone()),
+                ..Default::default()
+            },
+        )]);
+        let output = evm
+            .get_call_inner(
+                TransactionRequest {
+                    to: Some(TxKind::Call(reader)),
+                    input: TransactionInput::new(U256::from(height).to_be_bytes_vec().into()),
+                    ..Default::default()
+                },
+                Some(BlockId::Number(block)),
+                Some(state),
+                Some(overrides),
+                &mut working_set,
+                &ledger_db,
+                get_fork_fn_latest(),
+            )
+            .unwrap();
+        B256::from_slice(&output)
+    };
+    let at_height = |number: u64| BlockOverrides {
+        number: Some(U256::from(number)),
+        ..Default::default()
+    };
+    let latest_tag = BlockNumberOrTag::Latest;
+
+    // A hash supplied for height 257 must not replace block 1's, which shares its ring-buffer slot.
+    let supplied = BlockOverrides {
+        block_hash: Some(BTreeMap::from([(257, B256::repeat_byte(0xAA))])),
+        ..Default::default()
+    };
+    assert_eq!(blockhash(latest_tag, supplied, 1), canonical[1]);
+
+    // The retained hash is visible with both an unchanged and a shifted block number.
+    assert_eq!(blockhash(latest_tag, at_height(latest), 1), canonical[1]);
+    assert_eq!(blockhash(latest_tag, at_height(257), 1), canonical[1]);
+
+    // Window [2, 258): heights up to the head are canonical, later ones are zero.
+    assert_eq!(blockhash(latest_tag, at_height(258), 2), canonical[2]);
+    assert_eq!(blockhash(latest_tag, at_height(258), latest), canonical[3]);
+    assert_eq!(
+        blockhash(latest_tag, at_height(258), latest + 1),
+        B256::ZERO
+    );
+    // 257 shares a slot with block 1.
+    assert_eq!(blockhash(latest_tag, at_height(258), 257), B256::ZERO);
+
+    // A supplied hash still wins inside a moved window.
+    let supplied_at_height = BlockOverrides {
+        block_hash: Some(BTreeMap::from([(100, B256::repeat_byte(0xBB))])),
+        ..at_height(258)
+    };
+    assert_eq!(
+        blockhash(latest_tag, supplied_at_height, 100),
+        B256::repeat_byte(0xBB)
+    );
+
+    // On the pending block, the head is the last canonical height.
+    let pending = BlockNumberOrTag::Pending;
+    assert_eq!(blockhash(pending, at_height(258), latest), canonical[3]);
+    assert_eq!(blockhash(pending, at_height(258), latest + 1), B256::ZERO);
+
+    // On a historical block, later canonical blocks are not visible.
+    let historical = BlockNumberOrTag::Number(2);
+    assert_eq!(blockhash(historical, at_height(258), 2), canonical[2]);
+    assert_eq!(blockhash(historical, at_height(258), 3), B256::ZERO);
 }
 
 /// `eth_call` and `debug_traceCall` are bounded by the RPC gas cap (default 100M), not the block
