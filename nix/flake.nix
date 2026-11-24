@@ -147,7 +147,8 @@
             "--remap-path-prefix=/build=/build"
           ];
 
-          cargoExtraArgs = "--locked";
+          cargoExtraArgs = "--locked --package citrea --package citrea-cli";
+          doCheck = false;
 
           preBuild = ''
             export CITREA_WORKSPACE_MANIFEST="$PWD/Cargo.toml"
@@ -164,8 +165,6 @@
         packages = {
           citrea = craneLib.buildPackage (commonArgs // {
             inherit cargoArtifacts;
-            cargoExtraArgs = "--locked --package citrea --package citrea-cli";
-            doCheck = false;
 
             postInstall = ''
               strip $out/bin/citrea
