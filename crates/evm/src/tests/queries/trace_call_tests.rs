@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::map::AddressMap;
-use alloy_primitives::{Address, Bytes, TxKind, U256};
+use alloy_primitives::{Address, Bytes, TxKind, B256, U256};
 use alloy_rpc_types::state::AccountOverride;
 use alloy_rpc_types::TransactionRequest;
 use alloy_rpc_types_trace::geth::{
@@ -14,7 +14,8 @@ use sov_modules_api::WorkingSet;
 use crate::tests::queries::{
     init_evm_log_block, init_evm_prefix_regression_block, init_evm_single_block,
 };
-use crate::tests::utils::get_fork_fn_latest;
+use crate::tests::utils::{get_evm, get_fork_fn_latest};
+use crate::{AccountData, EvmConfig};
 
 /// Regression test for issue #3135
 /// debug_traceCall with balance state override and no explicit gas limit
@@ -85,6 +86,88 @@ fn test_debug_trace_call_with_balance_override_no_gas_limit() {
         "Balance override should make debug_traceCall succeed without explicit gas, but got error: {:?}",
         result_with_override.unwrap_err()
     );
+}
+
+#[test]
+fn test_prestate_tracer_reports_simulated_account_and_storage() {
+    let target = Address::repeat_byte(0x41);
+    let other = Address::repeat_byte(0x42);
+    let slot = U256::from(1);
+    // Read slots 0 and 1 so both appear in the prestate trace.
+    let original = Bytes::from_static(&[0x5f, 0x54, 0x50, 0x60, 0x01, 0x54, 0x50, 0x00]);
+    let config = EvmConfig {
+        data: [target, other]
+            .map(|address| {
+                AccountData::new(
+                    address,
+                    U256::from(5),
+                    original.clone(),
+                    1,
+                    [(U256::ZERO, U256::from(11)), (slot, U256::from(22))].into(),
+                )
+            })
+            .into(),
+        ..Default::default()
+    };
+    let (evm, mut working_set, _, ledger_db) = get_evm(&config);
+
+    // Read slot 0 and write 7 to slot 1. The trace should report slot 1's original value.
+    let replacement = Bytes::from_static(&[0x5f, 0x54, 0x50, 0x60, 0x07, 0x60, 0x01, 0x55, 0x00]);
+    let override_account = AccountOverride::default()
+        .with_code(replacement.clone())
+        .with_balance(U256::from(17))
+        .with_nonce(8)
+        .with_state([(B256::ZERO, U256::from(33).into())]);
+    let overrides = AddressMap::from_iter([(target, override_account)]);
+    let mut trace = |address, state_overrides| {
+        let trace = evm
+            .debug_trace_call(
+                TransactionRequest {
+                    to: Some(TxKind::Call(address)),
+                    ..Default::default()
+                },
+                Some(BlockNumberOrTag::Latest.into()),
+                Some(GethDebugTracingCallOptions {
+                    tracing_options: GethDebugTracingOptions::default().with_tracer(
+                        GethDebugTracerType::BuiltInTracer(
+                            GethDebugBuiltInTracerType::PreStateTracer,
+                        ),
+                    ),
+                    state_overrides,
+                    ..Default::default()
+                }),
+                &mut working_set,
+                &ledger_db,
+                512,
+            )
+            .unwrap()
+            .try_into_pre_state_frame()
+            .unwrap();
+        trace.as_default().unwrap().0[&address].clone()
+    };
+
+    let simulated = trace(target, Some(overrides.clone()));
+    assert_eq!(simulated.code, Some(replacement));
+    assert_eq!(simulated.balance, Some(U256::from(17)));
+    assert_eq!(simulated.nonce, Some(8));
+    assert_eq!(simulated.storage[&B256::ZERO], B256::from(U256::from(33)));
+    assert_eq!(simulated.storage[&B256::from(slot)], B256::ZERO);
+
+    let patch = AccountOverride::default().with_state_diff([(B256::from(slot), B256::ZERO)]);
+    let patched = trace(target, Some(AddressMap::from_iter([(target, patch)])));
+    assert_eq!(patched.storage[&B256::ZERO], B256::from(U256::from(11)));
+    assert_eq!(patched.storage[&B256::from(slot)], B256::ZERO);
+
+    for canonical in [trace(other, Some(overrides)), trace(target, None)] {
+        assert_eq!(canonical.code.as_ref(), Some(&original));
+        assert_eq!(canonical.balance, Some(U256::from(5)));
+        assert_eq!(canonical.nonce, Some(1));
+        assert_eq!(canonical.storage[&B256::ZERO], B256::from(U256::from(11)));
+        assert_eq!(
+            canonical.storage[&B256::from(slot)],
+            B256::from(U256::from(22))
+        );
+    }
 }
 
 /// Test that debug_traceCall disables base fee validation.

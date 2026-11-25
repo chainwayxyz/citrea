@@ -1,30 +1,35 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::map::AddressMap;
-use alloy_primitives::{Address, Bytes, TxKind, B256};
-use alloy_rpc_types::state::AccountOverride;
+use alloy_primitives::{keccak256, Address, Bytes, TxKind, B256};
+use alloy_rpc_types::state::{AccountOverride, StateOverride};
 use alloy_rpc_types::{BlockId, BlockOverrides, TransactionInput, TransactionRequest};
+use alloy_rpc_types_trace::geth::GethDebugTracingCallOptions;
 use jsonrpsee::core::RpcResult;
-use reth_rpc_eth_types::RpcInvalidTransactionError;
-use revm::primitives::U256;
+use reth_rpc_eth_types::revm_utils::apply_state_overrides as apply_reth_state_overrides;
+use reth_rpc_eth_types::{EthApiError, RpcInvalidTransactionError};
+use revm::database::{CacheDB, EmptyDBTyped};
+use revm::primitives::{BLOCK_HASH_HISTORY, U256};
+use revm::Database;
 use sov_db::ledger_db::LedgerDB;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
-use sov_modules_api::{
-    AccessoryWorkingSet, Context, Module, Spec, StateReaderAndWriter, StateVecAccessor, WorkingSet,
-};
+use sov_modules_api::{Context, Module, Spec, WorkingSet};
 use sov_rollup_interface::spec::SpecId;
-use sov_state::codec::RlpCodec;
 
+use crate::db::DBError;
 use crate::smart_contracts::{BlockHashContract, SimpleStorageContract};
 use crate::tests::get_test_seq_pub_key;
 use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
-use crate::tests::utils::{create_contract_message, get_evm, get_evm_config, get_fork_fn_latest};
+use crate::tests::utils::{
+    commit, create_contract_message, get_evm, get_evm_config, get_evm_with_storage,
+    get_fork_fn_latest, remove_native_header, set_arg_message,
+};
 use crate::{CallMessage, Evm, RpcGasCap, RPC_DEFAULT_GAS_CAP};
 
 type C = DefaultContext;
@@ -580,200 +585,283 @@ fn gas_price_call_test() {
 
 #[test]
 fn test_call_with_state_overrides() {
-    let (evm, mut working_set, prover_storage, signer, _, ledger_db) = init_evm(SpecId::latest());
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::latest());
 
     let contract = SimpleStorageContract::default();
     let contract_address = signer.address().create(7);
 
-    // Get value of contract before state override
-    let call_result_without_state_override = evm
-        .get_call_inner(
-            TransactionRequest {
-                from: Some(signer.address()),
-                to: Some(TxKind::Call(contract_address)),
-                input: TransactionInput::new(contract.get_call_data().into()),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .unwrap();
-
-    assert_eq!(
-        call_result_without_state_override,
-        U256::from(478).to_be_bytes_vec()
-    );
-
-    // Override the state and check returned value
-    let mut state: HashMap<B256, B256, alloy_primitives::map::FbBuildHasher<32>> =
-        HashMap::with_hasher(alloy_primitives::map::FbBuildHasher::default());
-    state.insert(U256::from(0).into(), U256::from(15).into());
-
-    let mut state_override: HashMap<
-        Address,
-        AccountOverride,
-        alloy_primitives::map::FbBuildHasher<20>,
-    > = HashMap::with_hasher(alloy_primitives::map::FbBuildHasher::default());
-    state_override.insert(
-        contract_address,
-        AccountOverride {
-            balance: None,
-            nonce: None,
-            code: None,
-            state: Some(state),
-            state_diff: None,
-            move_precompile_to: None,
-        },
-    );
-    let call_result_with_state_override = evm
-        .get_call_inner(
-            TransactionRequest {
-                from: Some(signer.address()),
-                to: Some(TxKind::Call(contract_address)),
-                input: TransactionInput::new(contract.get_call_data().into()),
-                ..Default::default()
-            },
-            None,
-            Some(state_override),
-            None,
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .unwrap();
-
-    assert_eq!(
-        call_result_with_state_override,
-        U256::from(15).to_be_bytes_vec()
-    );
-
-    for (state, state_diff, expected) in [
-        (Some(Default::default()), None, 0),
-        (None, Some(Default::default()), 478),
+    let request = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(contract_address)),
+        input: TransactionInput::new(contract.get_call_data().into()),
+        ..Default::default()
+    };
+    let other_slot = B256::repeat_byte(0xAB);
+    for (case, account_override, expected) in [
+        ("canonical storage", None, 478),
+        (
+            "replacement value",
+            Some(AccountOverride::default().with_state([(B256::ZERO, U256::from(15).into())])),
+            15,
+        ),
+        (
+            "nonempty replacement omits a canonical slot",
+            Some(AccountOverride::default().with_state([(other_slot, U256::from(19).into())])),
+            0,
+        ),
+        (
+            "empty replacement",
+            Some(AccountOverride::default().with_state([])),
+            0,
+        ),
+        (
+            "empty diff",
+            Some(AccountOverride::default().with_state_diff([])),
+            478,
+        ),
+        (
+            "diff value",
+            Some(AccountOverride::default().with_state_diff([(B256::ZERO, U256::from(23).into())])),
+            23,
+        ),
+        (
+            "diff omits the previous call's slot",
+            Some(AccountOverride::default().with_state_diff([(other_slot, U256::from(19).into())])),
+            478,
+        ),
+        (
+            "diff explicitly sets zero",
+            Some(AccountOverride::default().with_state_diff([(B256::ZERO, B256::ZERO)])),
+            0,
+        ),
+        ("canonical storage after overrides", None, 478),
     ] {
-        let mut working_set = WorkingSet::new(prover_storage.clone());
-        let overrides = AddressMap::from_iter([(
-            contract_address,
-            AccountOverride {
-                state,
-                state_diff,
-                ..Default::default()
-            },
-        )]);
+        let overrides =
+            account_override.map(|account| AddressMap::from_iter([(contract_address, account)]));
+        let mut reth_db = CacheDB::new(EmptyDBTyped::<DBError>::new());
+        reth_db
+            .insert_account_storage(contract_address, U256::ZERO, U256::from(478))
+            .unwrap();
+        if let Some(overrides) = overrides.clone() {
+            apply_reth_state_overrides(overrides, &mut reth_db).unwrap();
+        }
+        assert_eq!(
+            reth_db.storage(contract_address, U256::ZERO).unwrap(),
+            U256::from(expected),
+            "Reth: {case}"
+        );
         let result = evm
             .get_call_inner(
-                TransactionRequest {
-                    from: Some(signer.address()),
-                    to: Some(TxKind::Call(contract_address)),
-                    input: TransactionInput::new(contract.get_call_data().into()),
-                    ..Default::default()
-                },
+                request.clone(),
                 None,
-                Some(overrides),
+                overrides,
                 None,
                 &mut working_set,
                 &ledger_db,
                 get_fork_fn_latest(),
             )
             .unwrap();
-        assert_eq!(result, U256::from(expected).to_be_bytes_vec());
+        assert_eq!(result, U256::from(expected).to_be_bytes_vec(), "{case}");
+    }
+}
+
+#[test]
+fn test_call_with_code_override() {
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::latest());
+    let address = Address::repeat_byte(0x42);
+    let request = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(address)),
+        ..Default::default()
+    };
+    // Return 42 as a single byte.
+    let code = Bytes::from_static(&[0x60, 0x2a, 0x5f, 0x53, 0x60, 0x01, 0x5f, 0xf3]);
+    let code_hash = keccak256(&code);
+    let overrides = AddressMap::from_iter([(address, AccountOverride::default().with_code(code))]);
+    for (overrides, expected) in [
+        (None, Bytes::new()),
+        (Some(overrides), Bytes::from_static(&[42])),
+        (None, Bytes::new()),
+    ] {
+        let result = evm
+            .get_call_inner(
+                request.clone(),
+                None,
+                overrides,
+                None,
+                &mut working_set,
+                &ledger_db,
+                get_fork_fn_latest(),
+            )
+            .unwrap();
+        assert_eq!(result, expected);
+    }
+    assert_eq!(
+        evm.get_db(&mut working_set, SpecId::latest())
+            .code_by_hash(code_hash),
+        Err(DBError::UnknownCodeHash)
+    );
+}
+
+#[test]
+fn test_call_rejects_conflicting_storage_overrides() {
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::latest());
+    let address = signer.address().create(7);
+    let code = Bytes::from_static(&[0x60, 0x2b, 0x50, 0x00]);
+    let code_hash = keccak256(&code);
+    let invalid = AccountOverride::default()
+        .with_state([])
+        .with_state_diff([])
+        .with_code(code);
+    let err = evm
+        .get_call_inner(
+            TransactionRequest {
+                to: Some(TxKind::Call(address)),
+                ..Default::default()
+            },
+            None,
+            Some(StateOverride::from_iter([(address, invalid)])),
+            None,
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .unwrap_err();
+    let expected = EthApiError::BothStateAndStateDiffInOverride(address);
+    assert_eq!(err.code(), -32602);
+    assert_eq!(err.message(), expected.to_string());
+    assert_eq!(
+        evm.get_db(&mut working_set, SpecId::latest())
+            .code_by_hash(code_hash),
+        Err(DBError::UnknownCodeHash)
+    );
+}
+
+#[test]
+fn test_call_override_failure_leaves_account_untouched() {
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SpecId::latest());
+    let address = signer.address().create(7);
+    let request = TransactionRequest {
+        to: Some(TxKind::Call(address)),
+        input: TransactionInput::new(SimpleStorageContract::default().get_call_data().into()),
+        ..Default::default()
+    };
+    let mut call = |account: Option<AccountOverride>| {
+        evm.get_call_inner(
+            request.clone(),
+            None,
+            account.map(|account| StateOverride::from_iter([(address, account)])),
+            None,
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+    };
+
+    let malformed = AccountOverride::default().with_code(Bytes::from_static(&[0xef, 0x01]));
+    for override_account in [
+        malformed.clone(),
+        malformed.with_state([]).with_state_diff([]),
+    ] {
+        let invalid_params = call(Some(override_account)).unwrap_err();
+        assert_eq!(invalid_params.code(), -32602);
+        assert!(invalid_params.message().starts_with("Invalid bytecode:"));
     }
 
-    // Start with a fresh working set, because the previous one was for a separate RPC call.
-    let mut working_set = WorkingSet::new(prover_storage);
+    // The replacement writes slot 0 and reverts. Neither the override nor its writes survive.
+    let revert = AccountOverride::default()
+        .with_code(Bytes::from_static(&[
+            0x60, 0x01, 0x5f, 0x55, 0x5f, 0x5f, 0xfd,
+        ]))
+        .with_state_diff([(B256::ZERO, U256::from(37).into())]);
+    let reverted = call(Some(revert)).unwrap_err();
+    assert!(reverted.message().contains("execution reverted"));
+    assert_eq!(call(None).unwrap(), U256::from(478).to_be_bytes_vec());
 
-    // Get value of contract AFTER state override, this MUST be the original value.
-    let call_result_without_state_override = evm
-        .get_call_inner(
-            TransactionRequest {
-                from: Some(signer.address()),
-                to: Some(TxKind::Call(contract_address)),
-                input: TransactionInput::new(contract.get_call_data().into()),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .unwrap();
+    let empty_code = AccountOverride::default().with_code(Bytes::new());
+    assert!(call(Some(empty_code)).unwrap().is_empty());
+    assert_eq!(call(None).unwrap(), U256::from(478).to_be_bytes_vec());
+}
 
+#[test]
+fn test_historical_call_overrides_use_selected_state() {
+    let (config, signer) = get_evm_config(U256::from(1_000_000_000_000_000_000_u128), None);
+    let (mut evm, working_set, storage, ledger_db) = get_evm_with_storage(&config);
+    let mut root = commit(working_set, storage.clone());
+    let address = signer.address().create(0);
+    let spec = SpecId::latest();
+    for (height, nonce, value) in [(1, 1, 11), (2, 2, 22)] {
+        let mut working_set = WorkingSet::new(storage.clone());
+        let block_info = HookL2BlockInfo {
+            l2_height: height,
+            pre_state_root: root,
+            current_spec: spec,
+            sequencer_pub_key: get_test_seq_pub_key(),
+            l1_fee_rate: 0,
+            timestamp: height,
+        };
+        let context = C::new(generate_address::<C>("sender"), height, spec, 0);
+        let mut txs = vec![];
+        if height == 1 {
+            txs.push(create_contract_message(
+                &signer,
+                0,
+                SimpleStorageContract::default(),
+            ));
+        }
+        txs.push(set_arg_message(address, &signer, nonce, value));
+        evm.begin_l2_block_hook(&block_info, &mut working_set);
+        evm.call(CallMessage { txs }, &context, &mut working_set)
+            .unwrap();
+        evm.end_l2_block_hook(&block_info, &mut working_set);
+        let mut working_set = working_set.checkpoint().to_revertable();
+        evm.finalize_hook(&[height as u8; 32], &mut working_set.accessory_state());
+        root = commit(working_set, storage.clone());
+    }
+
+    let mut working_set = WorkingSet::new(storage);
+    let mut call = |block: BlockNumberOrTag, account: Option<AccountOverride>| {
+        let result = evm
+            .get_call_inner(
+                TransactionRequest {
+                    to: Some(TxKind::Call(address)),
+                    input: TransactionInput::new(
+                        SimpleStorageContract::default().get_call_data().into(),
+                    ),
+                    ..Default::default()
+                },
+                Some(block.into()),
+                account.map(|account| StateOverride::from_iter([(address, account)])),
+                None,
+                &mut working_set,
+                &ledger_db,
+                get_fork_fn_latest(),
+            )
+            .unwrap();
+        working_set.unset_archival_version();
+        U256::from_be_slice(&result)
+    };
+    let historical = BlockNumberOrTag::Number(1);
+    let latest = BlockNumberOrTag::Latest;
+    let other_slot = [(B256::repeat_byte(0xFF), U256::from(99).into())];
+    assert_eq!(call(historical, None), U256::from(11));
+    assert_eq!(call(latest, None), U256::from(22));
     assert_eq!(
-        call_result_without_state_override,
-        U256::from(478).to_be_bytes_vec()
+        call(
+            historical,
+            Some(AccountOverride::default().with_state_diff(other_slot))
+        ),
+        U256::from(11)
     );
-
-    // This deployed bytecode belongs to a smart contract that has a single function when called returns 42 and that's it.
-    let deployed_byte_code_of_contract = "6080604052348015600e575f80fd5b50600436106026575f3560e01c80639c16667c14602a575b5f80fd5b60306044565b604051603b91906062565b60405180910390f35b5f602a905090565b5f819050919050565b605c81604c565b82525050565b5f60208201905060735f8301846055565b9291505056fea2646970667358221220d797c79afd038e2209602cede489acc7a3cf5706d7a37a2840c134bc6761327f64736f6c634300081a0033";
-
-    // Function selector
-    let input: Bytes = hex::decode("9c16667c").unwrap().into();
-
-    let random_eoa_address = Address::random();
-
-    // Override the code of that random address with the deployed bytecode of the contract
-    // Then call the contract with the function selector
-    let mut state_override = AddressMap::<AccountOverride>::default();
-    state_override.insert(
-        random_eoa_address,
-        AccountOverride {
-            balance: None,
-            nonce: None,
-            code: Some(hex::decode(deployed_byte_code_of_contract).unwrap().into()),
-            state: None,
-            state_diff: None,
-            move_precompile_to: None,
-        },
-    );
-
-    let call_result_without_state_override = evm
-        .get_call_inner(
-            TransactionRequest {
-                from: Some(signer.address()),
-                to: Some(TxKind::Call(random_eoa_address)),
-                input: TransactionInput::new(input.clone()),
-                ..Default::default()
-            },
-            None,
-            None,
-            None,
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .unwrap();
-
-    // Assert that the call without state override returns empty
-    assert_eq!(call_result_without_state_override, Bytes::default());
-
-    let call_result_with_state_override = evm
-        .get_call_inner(
-            TransactionRequest {
-                from: Some(signer.address()),
-                to: Some(TxKind::Call(random_eoa_address)),
-                input: TransactionInput::new(input),
-                ..Default::default()
-            },
-            None,
-            Some(state_override),
-            None,
-            &mut working_set,
-            &ledger_db,
-            get_fork_fn_latest(),
-        )
-        .unwrap();
-
-    // Assert that the call result is 42
     assert_eq!(
-        call_result_with_state_override,
-        U256::from(42).to_be_bytes_vec()
+        call(
+            historical,
+            Some(AccountOverride::default().with_state(other_slot))
+        ),
+        U256::ZERO
     );
+    assert_eq!(call(historical, None), U256::from(11));
+    assert_eq!(call(latest, None), U256::from(22));
 }
 
 #[test]
@@ -901,12 +989,12 @@ fn test_call_with_block_overrides() {
     assert_eq!(call_result, expected_hash);
 }
 
-/// A `number` override moves the window `BLOCKHASH` reads from. Unsupplied hashes come from
-/// retained state or canonical headers up to the original block and resolve to zero after it.
+/// A `number` override moves the `BLOCKHASH` window. Unsupplied hashes come from retained state
+/// or canonical headers and resolve to zero when unavailable.
 #[test]
 fn test_call_block_hash_overrides_by_height() {
     // Blocks 0..=3; at the head's state the ring buffer holds the hashes of blocks 0..=2.
-    let (evm, mut working_set, _, _, _, ledger_db) = init_evm(SpecId::latest());
+    let (evm, mut working_set, storage, signer, _, ledger_db) = init_evm(SpecId::latest());
     let latest = evm.last_sealed_header(&mut working_set).number;
     assert_eq!(latest, 3);
     let canonical: Vec<B256> = (0..=latest)
@@ -914,12 +1002,7 @@ fn test_call_block_hash_overrides_by_height() {
         .collect();
 
     // Pruning removes native block entries independently of hashes in retained EVM state.
-    let blocks = StateVecAccessor::<_, _, AccessoryWorkingSet<'_, <C as Spec>::Storage>>::prefix(
-        &evm.blocks,
-    );
-    working_set
-        .accessory_state()
-        .delete_value::<usize, usize, _>(&blocks.extended(b"e"), &1, &RlpCodec);
+    remove_native_header(&evm, 1, &mut working_set);
     assert_eq!(evm.block_hash_from_number(1, &mut working_set), None);
 
     // PUSH1 0, CALLDATALOAD, BLOCKHASH, PUSH1 0, MSTORE, PUSH1 32, PUSH1 0, RETURN
@@ -927,31 +1010,29 @@ fn test_call_block_hash_overrides_by_height() {
     let reader_code = Bytes::from_static(&[
         0x60, 0x00, 0x35, 0x40, 0x60, 0x00, 0x52, 0x60, 0x20, 0x60, 0x00, 0xf3,
     ]);
-    let mut blockhash = |block: BlockNumberOrTag, overrides: BlockOverrides, height: u64| {
-        let state = AddressMap::from_iter([(
-            reader,
-            AccountOverride {
-                code: Some(reader_code.clone()),
-                ..Default::default()
-            },
-        )]);
-        let output = evm
-            .get_call_inner(
-                TransactionRequest {
-                    to: Some(TxKind::Call(reader)),
-                    input: TransactionInput::new(U256::from(height).to_be_bytes_vec().into()),
-                    ..Default::default()
-                },
-                Some(BlockId::Number(block)),
-                Some(state),
-                Some(overrides),
-                &mut working_set,
-                &ledger_db,
-                get_fork_fn_latest(),
-            )
-            .unwrap();
-        B256::from_slice(&output)
+    let state =
+        AddressMap::from_iter([(reader, AccountOverride::default().with_code(reader_code))]);
+    let request = |height| TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(reader)),
+        input: TransactionInput::new(U256::from(height).to_be_bytes_vec().into()),
+        ..Default::default()
     };
+    let mut blockhash =
+        |block: BlockNumberOrTag, overrides: Option<BlockOverrides>, height: u64| {
+            let output = evm
+                .get_call_inner(
+                    request(height),
+                    Some(BlockId::Number(block)),
+                    Some(state.clone()),
+                    overrides,
+                    &mut working_set,
+                    &ledger_db,
+                    get_fork_fn_latest(),
+                )
+                .unwrap();
+            B256::from_slice(&output)
+        };
     let at_height = |number: u64| BlockOverrides {
         number: Some(U256::from(number)),
         ..Default::default()
@@ -963,21 +1044,34 @@ fn test_call_block_hash_overrides_by_height() {
         block_hash: Some(BTreeMap::from([(257, B256::repeat_byte(0xAA))])),
         ..Default::default()
     };
-    assert_eq!(blockhash(latest_tag, supplied, 1), canonical[1]);
+    assert_eq!(blockhash(latest_tag, Some(supplied), 1), canonical[1]);
+
+    let explicit_zero = BlockOverrides {
+        block_hash: Some(BTreeMap::from([(1, B256::ZERO)])),
+        ..Default::default()
+    };
+    assert_eq!(blockhash(latest_tag, Some(explicit_zero), 1), B256::ZERO);
+    assert_eq!(blockhash(latest_tag, None, 1), canonical[1]);
 
     // The retained hash is visible with both an unchanged and a shifted block number.
-    assert_eq!(blockhash(latest_tag, at_height(latest), 1), canonical[1]);
-    assert_eq!(blockhash(latest_tag, at_height(257), 1), canonical[1]);
+    assert_eq!(
+        blockhash(latest_tag, Some(at_height(latest)), 1),
+        canonical[1]
+    );
+    assert_eq!(blockhash(latest_tag, Some(at_height(257)), 1), canonical[1]);
 
     // Window [2, 258): heights up to the head are canonical, later ones are zero.
-    assert_eq!(blockhash(latest_tag, at_height(258), 2), canonical[2]);
-    assert_eq!(blockhash(latest_tag, at_height(258), latest), canonical[3]);
+    assert_eq!(blockhash(latest_tag, Some(at_height(258)), 2), canonical[2]);
     assert_eq!(
-        blockhash(latest_tag, at_height(258), latest + 1),
+        blockhash(latest_tag, Some(at_height(258)), latest),
+        canonical[3]
+    );
+    assert_eq!(
+        blockhash(latest_tag, Some(at_height(258)), latest + 1),
         B256::ZERO
     );
     // 257 shares a slot with block 1.
-    assert_eq!(blockhash(latest_tag, at_height(258), 257), B256::ZERO);
+    assert_eq!(blockhash(latest_tag, Some(at_height(258)), 257), B256::ZERO);
 
     // A supplied hash still wins inside a moved window.
     let supplied_at_height = BlockOverrides {
@@ -985,19 +1079,80 @@ fn test_call_block_hash_overrides_by_height() {
         ..at_height(258)
     };
     assert_eq!(
-        blockhash(latest_tag, supplied_at_height, 100),
+        blockhash(latest_tag, Some(supplied_at_height), 100),
         B256::repeat_byte(0xBB)
     );
 
+    let number = BLOCK_HASH_HISTORY + 2;
+    let hashes = BlockOverrides {
+        block_hash: Some(BTreeMap::from([
+            (1, B256::repeat_byte(1)),
+            (2, B256::repeat_byte(2)),
+            (number - 1, B256::repeat_byte(3)),
+            (number, B256::repeat_byte(4)),
+            (number + 1, B256::repeat_byte(5)),
+        ])),
+        ..at_height(number)
+    };
+    for (height, expected) in [
+        (1, B256::ZERO),
+        (2, B256::repeat_byte(2)),
+        (number - 1, B256::repeat_byte(3)),
+        (number, B256::ZERO),
+        (number + 1, B256::ZERO),
+    ] {
+        assert_eq!(
+            blockhash(latest_tag, Some(hashes.clone()), height),
+            expected,
+            "height {height}"
+        );
+    }
+
     // On the pending block, the head is the last canonical height.
     let pending = BlockNumberOrTag::Pending;
-    assert_eq!(blockhash(pending, at_height(258), latest), canonical[3]);
-    assert_eq!(blockhash(pending, at_height(258), latest + 1), B256::ZERO);
+    assert_eq!(
+        blockhash(pending, Some(at_height(258)), latest),
+        canonical[3]
+    );
+    assert_eq!(
+        blockhash(pending, Some(at_height(258)), latest + 1),
+        B256::ZERO
+    );
+    let parent_override = BlockOverrides {
+        block_hash: Some(BTreeMap::from([(latest, B256::ZERO)])),
+        ..Default::default()
+    };
+    assert_eq!(
+        blockhash(pending, Some(parent_override), latest),
+        B256::ZERO
+    );
+    assert_eq!(blockhash(pending, None, latest), canonical[3]);
 
-    // On a historical block, later canonical blocks are not visible.
-    let historical = BlockNumberOrTag::Number(2);
-    assert_eq!(blockhash(historical, at_height(258), 2), canonical[2]);
-    assert_eq!(blockhash(historical, at_height(258), 3), B256::ZERO);
+    // Reth reads canonical hashes independently of the historical account and storage snapshot.
+    let historical = BlockNumberOrTag::Earliest;
+    assert_eq!(blockhash(historical, Some(at_height(258)), 2), canonical[2]);
+    assert_eq!(blockhash(historical, Some(at_height(258)), 3), canonical[3]);
+    assert_eq!(blockhash(historical, Some(at_height(258)), 4), B256::ZERO);
+
+    for block in [pending, historical] {
+        let trace = evm
+            .debug_trace_call(
+                request(latest),
+                Some(block.into()),
+                Some(GethDebugTracingCallOptions {
+                    state_overrides: Some(state.clone()),
+                    block_overrides: Some(at_height(258)),
+                    ..Default::default()
+                }),
+                &mut WorkingSet::new(storage.clone()),
+                &ledger_db,
+                512,
+            )
+            .unwrap()
+            .try_into_default_frame()
+            .unwrap();
+        assert_eq!(trace.return_value.as_ref(), canonical[3].as_slice());
+    }
 }
 
 /// `eth_call` and `debug_traceCall` are bounded by the RPC gas cap (default 100M), not the block

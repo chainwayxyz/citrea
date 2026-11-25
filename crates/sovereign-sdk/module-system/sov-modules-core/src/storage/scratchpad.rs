@@ -633,7 +633,19 @@ impl<S: Storage> WorkingSet<S> {
     /// You can use this method when calling getters and setters on accessory
     /// state containers, like AccessoryStateMap.
     pub fn accessory_state(&mut self) -> AccessoryWorkingSet<'_, S> {
-        AccessoryWorkingSet { ws: self }
+        AccessoryWorkingSet {
+            delta: &mut self.accessory_delta,
+            archival: self.archival_accessory_working_set.as_mut(),
+        }
+    }
+
+    /// Returns the accessory state at the working set's original storage version.
+    #[cfg(feature = "native")]
+    pub fn base_accessory_state(&mut self) -> AccessoryWorkingSet<'_, S> {
+        AccessoryWorkingSet {
+            delta: &mut self.accessory_delta,
+            archival: None,
+        }
     }
 
     /// Returns a handler for the offchain state (non-JMT state).
@@ -751,7 +763,8 @@ impl<S: Storage> StateReaderAndWriter for WorkingSet<S> {
 /// A wrapper over [`WorkingSet`] that only allows access to the accessory
 /// state (non-JMT state).
 pub struct AccessoryWorkingSet<'a, S: Storage> {
-    ws: &'a mut WorkingSet<S>,
+    delta: &'a mut AccessoryDelta<S>,
+    archival: Option<&'a mut ArchivalAccessoryWorkingSet<S>>,
 }
 
 impl<S: Storage> StateReaderAndWriter for AccessoryWorkingSet<'_, S> {
@@ -759,23 +772,23 @@ impl<S: Storage> StateReaderAndWriter for AccessoryWorkingSet<'_, S> {
         if !cfg!(feature = "native") {
             None
         } else {
-            match &mut self.ws.archival_accessory_working_set {
-                None => self.ws.accessory_delta.get(key),
+            match &mut self.archival {
+                None => self.delta.get(key),
                 Some(ref mut archival_working_set) => archival_working_set.get(key),
             }
         }
     }
 
     fn set(&mut self, key: &StorageKey, value: StorageValue) {
-        match &mut self.ws.archival_accessory_working_set {
-            None => self.ws.accessory_delta.set(key, value),
+        match &mut self.archival {
+            None => self.delta.set(key, value),
             Some(ref mut archival_working_set) => archival_working_set.set(key, value),
         }
     }
 
     fn delete(&mut self, key: &StorageKey) {
-        match &mut self.ws.archival_accessory_working_set {
-            None => self.ws.accessory_delta.delete(key),
+        match &mut self.archival {
+            None => self.delta.delete(key),
             Some(ref mut archival_working_set) => archival_working_set.delete(key),
         }
     }

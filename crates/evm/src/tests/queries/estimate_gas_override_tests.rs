@@ -3,7 +3,7 @@ use std::str::FromStr;
 use alloy_eips::BlockNumberOrTag;
 use alloy_primitives::map::{AddressMap, B256HashMap};
 use alloy_primitives::{Address, TxKind, B256, U256};
-use alloy_rpc_types::state::AccountOverride;
+use alloy_rpc_types::state::{AccountOverride, StateOverride};
 use alloy_rpc_types::{TransactionInput, TransactionRequest};
 use revm::primitives::KECCAK_EMPTY;
 use sov_modules_api::default_context::DefaultContext;
@@ -15,14 +15,117 @@ use sov_rollup_interface::spec::SpecId as SovSpecId;
 use super::get_test_seq_pub_key;
 use crate::call::CallMessage;
 use crate::smart_contracts::SimpleStorageContract;
-use crate::tests::queries::init_evm_single_block;
+use crate::tests::queries::{init_evm, init_evm_single_block};
 use crate::tests::test_signer::TestSigner;
 use crate::tests::utils::{
-    commit, create_contract_transaction, get_evm_with_storage, get_fork_fn_latest,
+    commit, create_contract_transaction, get_evm, get_evm_config, get_evm_with_storage,
+    get_fork_fn_latest,
 };
 use crate::{AccountData, EvmConfig};
 
 type C = DefaultContext;
+
+#[test]
+fn test_estimates_and_access_list_use_replacement_storage() {
+    let (evm, mut working_set, _, signer, _, ledger_db) = init_evm(SovSpecId::latest());
+    let address = signer.address().create(7);
+    let request = TransactionRequest {
+        from: Some(signer.address()),
+        to: Some(TxKind::Call(address)),
+        input: TransactionInput::new(SimpleStorageContract::default().set_call_data(478).into()),
+        ..Default::default()
+    };
+    let block = Some(BlockNumberOrTag::Latest);
+    let mut estimate = |state_overrides: Option<StateOverride>| {
+        let gas = evm
+            .eth_estimate_gas_inner(
+                request.clone(),
+                block,
+                state_overrides.clone(),
+                &mut working_set,
+                &ledger_db,
+                get_fork_fn_latest(),
+            )
+            .unwrap();
+        let diff = evm
+            .eth_estimate_diff_size_inner(
+                request.clone(),
+                block,
+                state_overrides.clone(),
+                &mut working_set,
+                &ledger_db,
+                get_fork_fn_latest(),
+            )
+            .unwrap();
+        let access = evm
+            .create_access_list_inner(
+                request.clone(),
+                block,
+                state_overrides,
+                &mut working_set,
+                &ledger_db,
+                get_fork_fn_latest(),
+            )
+            .unwrap();
+        (gas, diff, access)
+    };
+
+    // Writing the stored value is a no-op. In a replacement with no slot 0, it initializes storage.
+    let (original_gas, original_diff, original_access) = estimate(None);
+    let replacement = AccountOverride::default().with_state([]);
+    let (gas, diff, access) = estimate(Some(AddressMap::from_iter([(address, replacement)])));
+    assert!(gas > original_gas);
+    assert!(diff.gas > original_diff.gas);
+    assert!(diff.l1_diff_size > original_diff.l1_diff_size);
+    assert_eq!(access.access_list, original_access.access_list);
+    assert!(access.gas_used > original_access.gas_used);
+    assert_eq!(
+        estimate(None),
+        (original_gas, original_diff, original_access)
+    );
+}
+
+#[test]
+fn test_estimated_diff_size_treats_overridden_account_as_existing() {
+    let (mut config, signer) = get_evm_config(U256::from(1_000_000_000_000_000_000_u128), None);
+    let existing = Address::repeat_byte(0x41);
+    let simulated = Address::repeat_byte(0x42);
+    let balance = U256::from(10);
+    config.data.push(AccountData::new(
+        existing,
+        balance,
+        Default::default(),
+        0,
+        Default::default(),
+    ));
+    let (evm, mut working_set, _, ledger_db) = get_evm(&config);
+    let mut estimate = |address, overrides| {
+        evm.eth_estimate_diff_size_inner(
+            TransactionRequest {
+                from: Some(signer.address()),
+                to: Some(TxKind::Call(address)),
+                value: Some(U256::from(1)),
+                ..Default::default()
+            },
+            Some(BlockNumberOrTag::Latest),
+            overrides,
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .unwrap()
+        .l1_diff_size
+    };
+
+    let canonical = estimate(existing, None);
+    let missing = estimate(simulated, None);
+    let overrides =
+        AddressMap::from_iter([(simulated, AccountOverride::default().with_balance(balance))]);
+    assert!(missing > canonical);
+    assert_eq!(estimate(simulated, Some(overrides)), canonical);
+    assert_eq!(estimate(simulated, None), missing);
+    assert!(!evm.account_exists(&simulated, &mut working_set));
+}
 
 /// Test eth_estimateGas with state overrides (storage only)
 /// This test deploys a contract properly, then compares gas estimation

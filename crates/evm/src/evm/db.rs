@@ -3,17 +3,21 @@ use core::error::Error;
 use std::collections::BTreeMap;
 
 #[cfg(feature = "native")]
+use alloy_eips::BlockNumHash;
+#[cfg(feature = "native")]
 use alloy_primitives::map::{AddressMap, B256HashMap};
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
+#[cfg(feature = "native")]
+use reth_rpc_eth_types::revm_utils::OverrideBlockHashes;
 use revm::context::DBErrorMarker;
 #[cfg(feature = "native")]
 use revm::primitives::BLOCK_HASH_HISTORY;
 use revm::state::{AccountInfo as ReVmAccountInfo, Bytecode};
 use revm::Database;
+#[cfg(feature = "native")]
+use sov_modules_api::StateVecAccessor;
 use sov_modules_api::{SpecId, StateMapAccessor, WorkingSet};
 
-#[cfg(feature = "native")]
-use super::AccountInfo;
 use crate::Evm;
 
 // infallible
@@ -76,24 +80,29 @@ fn verify_code(code_hash: B256, code: &Bytecode) -> Result<(), DBError> {
 }
 
 #[cfg(feature = "native")]
-struct BlockHashOverrideBase {
-    original_number: u64,
-    last_canonical_block: u64,
+pub(crate) struct RpcAccountOverride {
+    pub(crate) info: ReVmAccountInfo,
+    pub(crate) storage: B256HashMap<B256>,
+    /// When set, slots missing from `storage` read as zero.
+    pub(crate) replace_storage: bool,
 }
 
 pub(crate) struct EvmDb<'a, C: sov_modules_api::Context> {
     pub(crate) evm: &'a Evm<C>,
     pub(crate) working_set: &'a mut WorkingSet<C::Storage>,
     pub(crate) citrea_spec: SpecId,
-    /// Full storage replacements for RPC simulations. Omitted slots read as zero.
     #[cfg(feature = "native")]
-    storage_overrides: AddressMap<B256HashMap<B256>>,
+    account_overrides: AddressMap<RpcAccountOverride>,
+    #[cfg(feature = "native")]
+    code_overrides: B256HashMap<Bytecode>,
     /// Block hashes supplied by a block override.
     #[cfg(feature = "native")]
     block_hash_overrides: BTreeMap<u64, B256>,
-    /// Original block context for resolving unsupplied hashes when the block number is overridden.
     #[cfg(feature = "native")]
-    override_block_hash_base: Option<BlockHashOverrideBase>,
+    pending_parent: Option<BlockNumHash>,
+    /// Latest sealed height in the selected state when the simulated block number is overridden.
+    #[cfg(feature = "native")]
+    block_hash_base: Option<u64>,
 }
 
 impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
@@ -107,53 +116,44 @@ impl<'a, C: sov_modules_api::Context> EvmDb<'a, C> {
             working_set,
             citrea_spec,
             #[cfg(feature = "native")]
-            storage_overrides: AddressMap::default(),
+            account_overrides: AddressMap::default(),
+            #[cfg(feature = "native")]
+            code_overrides: B256HashMap::default(),
             #[cfg(feature = "native")]
             block_hash_overrides: BTreeMap::new(),
             #[cfg(feature = "native")]
-            override_block_hash_base: None,
+            pending_parent: None,
+            #[cfg(feature = "native")]
+            block_hash_base: None,
         }
     }
 
     #[cfg(feature = "native")]
-    pub(crate) fn override_block_hashes(
-        &mut self,
-        hashes: BTreeMap<u64, B256>,
-        original_number: Option<u64>,
-        last_canonical_block: u64,
-    ) {
-        self.block_hash_overrides = hashes;
-        self.override_block_hash_base =
-            original_number.map(|original_number| BlockHashOverrideBase {
-                original_number,
-                last_canonical_block,
-            });
+    pub(crate) fn with_pending_parent(mut self, parent: Option<BlockNumHash>) -> Self {
+        self.pending_parent = parent;
+        self
     }
 
     #[cfg(feature = "native")]
-    pub(crate) fn replace_account_storage(&mut self, account: Address, state: B256HashMap<B256>) {
-        self.storage_overrides.insert(account, state);
+    pub(crate) fn set_block_hash_base(&mut self, number: u64) {
+        self.block_hash_base = Some(number);
     }
 
     #[cfg(feature = "native")]
-    pub(crate) fn override_account(&mut self, account: &Address, info: AccountInfo) {
-        self.evm.account_set(account, &info, self.working_set);
+    pub(crate) fn override_account(&mut self, address: Address, account: RpcAccountOverride) {
+        self.account_overrides.insert(address, account);
     }
 
     #[cfg(feature = "native")]
-    pub(crate) fn override_set_account_storage(
-        &mut self,
-        account: &Address,
-        state_diff: B256HashMap<B256>,
-    ) {
-        for (slot, value) in state_diff {
-            self.evm.storage_set(
-                account,
-                &slot.into(),
-                &U256::from_be_bytes(value.0),
-                self.working_set,
-            );
-        }
+    pub(crate) fn override_code(&mut self, hash: B256, code: Bytecode) {
+        self.code_overrides.insert(hash, code);
+    }
+}
+
+#[cfg(feature = "native")]
+impl<C: sov_modules_api::Context> OverrideBlockHashes for EvmDb<'_, C> {
+    fn override_block_hashes(&mut self, hashes: BTreeMap<u64, B256>) {
+        self.block_hash_overrides.extend(hashes);
     }
 }
 
@@ -161,11 +161,21 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
     type Error = DBError;
 
     fn basic(&mut self, address: Address) -> Result<Option<ReVmAccountInfo>, Self::Error> {
+        #[cfg(feature = "native")]
+        if let Some(account) = self.account_overrides.get(&address) {
+            return Ok(Some(account.info.clone()));
+        }
+
         let db_account = self.evm.account_info(&address, self.working_set);
         Ok(db_account.map(Into::into))
     }
 
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+        #[cfg(feature = "native")]
+        if let Some(code) = self.code_overrides.get(&code_hash) {
+            return Ok(code.clone());
+        }
+
         self.evm
             .offchain_code
             .get_with_verification_on_no_cache(
@@ -181,9 +191,13 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         #[cfg(feature = "native")]
-        if let Some(storage) = self.storage_overrides.get(&address) {
-            let value = storage.get(&B256::from(index)).copied().unwrap_or_default();
-            return Ok(U256::from_be_bytes(value.0));
+        if let Some(account) = self.account_overrides.get(&address) {
+            if let Some(value) = account.storage.get(&B256::from(index)) {
+                return Ok(U256::from_be_bytes(value.0));
+            }
+            if account.replace_storage {
+                return Ok(U256::ZERO);
+            }
         }
 
         let storage_value = self
@@ -200,22 +214,27 @@ impl<C: sov_modules_api::Context> Database for EvmDb<'_, C> {
             if let Some(hash) = self.block_hash_overrides.get(&number) {
                 return Ok(*hash);
             }
-            if let Some(base) = &self.override_block_hash_base {
+            if let Some(parent) = self.pending_parent.filter(|parent| parent.number == number) {
+                return Ok(parent.hash);
+            }
+            if let Some(base) = self.block_hash_base {
                 // Retained state can still contain a hash after its native header is pruned.
-                // The modulo-indexed buffer only identifies heights in the original window.
-                let distance = base.original_number.saturating_sub(number);
+                // The modulo-indexed buffer ends at the sealed block's parent.
+                let distance = base.saturating_sub(number);
                 if (1..=BLOCK_HASH_HISTORY).contains(&distance) {
                     if let Some(hash) = self.evm.blockhash_get(number, self.working_set) {
                         return Ok(hash);
                     }
                 }
-                return Ok(if number <= base.last_canonical_block {
+                // Reth looks up canonical headers independently of historical account state.
+                // <https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/storage/provider/src/providers/state/historical.rs#L271-L277>
+                let hash = usize::try_from(number).ok().and_then(|index| {
                     self.evm
-                        .block_hash_from_number(number, self.working_set)
-                        .unwrap_or_default()
-                } else {
-                    B256::ZERO
+                        .blocks
+                        .get(index, &mut self.working_set.base_accessory_state())
+                        .map(|block| block.header.hash())
                 });
+                return Ok(hash.unwrap_or_default());
             }
         }
 
@@ -239,6 +258,11 @@ pub trait AccountExistsProvider {
 
 impl<C: sov_modules_api::Context> AccountExistsProvider for EvmDb<'_, C> {
     fn is_first_time_committing_address(&mut self, address: &Address) -> bool {
+        #[cfg(feature = "native")]
+        if self.account_overrides.contains_key(address) {
+            return false;
+        }
+
         // As the diff size is calculated in `Handler::output` before `DataBase::commit`,
         // We wouldn't have them in the account indices map
         // So this can tell us if the account is newly created
@@ -248,10 +272,7 @@ impl<C: sov_modules_api::Context> AccountExistsProvider for EvmDb<'_, C> {
 
 impl<C: sov_modules_api::Context> AccountExistsProvider for &mut EvmDb<'_, C> {
     fn is_first_time_committing_address(&mut self, address: &Address) -> bool {
-        // As the diff size is calculated in `Handler::output` before `DataBase::commit`,
-        // We wouldn't have them in the account indices map
-        // So this can tell us if the account is newly created
-        !self.evm.account_exists(address, self.working_set)
+        (**self).is_first_time_committing_address(address)
     }
 }
 

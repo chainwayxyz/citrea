@@ -5,7 +5,7 @@ use alloy_consensus::TxReceipt;
 use alloy_eips::eip1559::ETHEREUM_BLOCK_GAS_LIMIT_30M;
 use alloy_eips::{BlockId, BlockNumberOrTag};
 use alloy_primitives::{address, keccak256, Address, Bytes, TxKind, B256, U64};
-use alloy_rpc_types::{TransactionInput, TransactionRequest};
+use alloy_rpc_types::{BlockOverrides, TransactionInput, TransactionRequest};
 use citrea_primitives::min_base_fee_per_gas;
 use rand::thread_rng;
 use revm::bytecode::eip7702::Eip7702Bytecode;
@@ -17,7 +17,7 @@ use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::hooks::HookL2BlockInfo;
 use sov_modules_api::utils::generate_address;
 use sov_modules_api::{
-    Context, L2BlockModuleCallError, Module, StateMapAccessor, StateVecAccessor,
+    Context, L2BlockModuleCallError, Module, Spec, StateMapAccessor, StateVecAccessor, WorkingSet,
 };
 use sov_rollup_interface::spec::SpecId as SovSpecId;
 
@@ -33,7 +33,7 @@ use crate::tests::utils::{
     config_push_contracts, create_contract_message, create_contract_message_with_fee,
     create_contract_message_with_fee_and_gas_limit, create_contract_transaction, get_evm,
     get_evm_config, get_evm_config_starting_base_fee, get_evm_with_spec, get_fork_fn_latest,
-    publish_event_message, set_arg_message,
+    publish_event_message, remove_native_header, set_arg_message,
 };
 use crate::tests::{get_test_seq_pub_key, DEFAULT_CHAIN_ID};
 use crate::{
@@ -610,6 +610,50 @@ fn test_block_hash_in_evm() {
         }
     }
 
+    // Moving the execution block back exposes hashes older than the head's 256-entry buffer.
+    let older_height = 259;
+    let canonical_hash = evm
+        .block_hash_from_number(older_height, &mut working_set)
+        .unwrap();
+    assert_ne!(
+        evm.blockhash_get(older_height, &mut working_set),
+        Some(canonical_hash)
+    );
+    request.input.input = Some(
+        BlockHashContract::default()
+            .get_block_hash(older_height)
+            .into(),
+    );
+    let older_block = |working_set: &mut WorkingSet<<C as Spec>::Storage>| {
+        evm.get_call_inner(
+            request.clone(),
+            None,
+            None,
+            Some(BlockOverrides {
+                number: Some(U256::from(older_height + 1)),
+                ..Default::default()
+            }),
+            working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        older_block(&mut working_set).as_ref(),
+        canonical_hash.as_slice()
+    );
+
+    remove_native_header(&evm, older_height, &mut working_set);
+    assert_eq!(
+        evm.block_hash_from_number(older_height, &mut working_set),
+        None
+    );
+    assert_eq!(
+        older_block(&mut working_set).as_ref(),
+        B256::ZERO.as_slice()
+    );
+
     // last produced block is 516, eth_call with pending should return latest block's hash
     let latest_block = evm.blocks.get(516, &mut working_set.accessory_state());
     request.input.input = Some(BlockHashContract::default().get_block_hash(516).into());
@@ -642,6 +686,39 @@ fn test_block_hash_in_evm() {
     );
 
     assert_eq!(resp.unwrap().to_vec(), vec![0u8; 32]);
+
+    // The pending parent shares a slot with the oldest hash visible at latest.
+    let oldest_hash = evm.block_hash_from_number(260, &mut working_set).unwrap();
+    let resp = evm
+        .get_call_inner(
+            request.clone(),
+            Some(BlockId::latest()),
+            None,
+            None,
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .unwrap();
+    assert_eq!(resp.as_ref(), oldest_hash.as_slice());
+
+    // Moving the pending block back exposes the oldest hash in the sealed state's buffer.
+    remove_native_header(&evm, 260, &mut working_set);
+    let resp = evm
+        .get_call_inner(
+            request,
+            Some(BlockId::pending()),
+            None,
+            Some(BlockOverrides {
+                number: Some(U256::from(516)),
+                ..Default::default()
+            }),
+            &mut working_set,
+            &ledger_db,
+            get_fork_fn_latest(),
+        )
+        .unwrap();
+    assert_eq!(resp.as_ref(), oldest_hash.as_slice());
 }
 
 #[test]
