@@ -1,16 +1,15 @@
-use std::collections::HashMap;
-
 use alloy_consensus::constants::KECCAK_EMPTY;
-use alloy_primitives::{keccak256, Address, Bytes};
-use alloy_rpc_types::state::AccountOverride;
+use alloy_primitives::{Address, Bytes};
+use alloy_rpc_types::state::{AccountOverride, StateOverride};
 use alloy_rpc_types::{BlockOverrides, EIP1186AccountProofResponse, EIP1186StorageProof};
 use alloy_serde::JsonStorageKey;
 pub use filter::*;
 pub use log_utils::*;
+use reth_rpc_eth_types::revm_utils::apply_block_overrides as apply_reth_block_overrides;
 use reth_rpc_eth_types::{EthApiError, EthResult};
 use revm::context::BlockEnv;
-use revm::state::{Account, AccountStatus};
-use revm::{Database, DatabaseCommit};
+use revm::state::Bytecode;
+use revm::Database;
 
 mod filter;
 mod log_utils;
@@ -23,12 +22,16 @@ pub(crate) use trace_limit::TraceMemoryUsage;
 pub use trace_limit::{mb_to_bytes, trace_memory_limit_exceeded};
 pub(crate) use tracing_utils::*;
 
-use crate::db::EvmDb;
+use crate::db::{EvmDb, RpcAccountOverride};
 use crate::Evm;
 
-/// Applies all instances [`AccountOverride`] to the [`EvmDb`].
+/// Applies state overrides to the simulation database.
+///
+/// Citrea mirrors Reth's RPC storage semantics. It serves storage replacements from the simulation
+/// database because its state layout stores slots independently of the account record.
+/// [Reth v1.3.7 `CacheDB` overrides](https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/rpc/rpc-eth-types/src/revm_utils.rs#L275-L340)
 pub(crate) fn apply_state_overrides<C: sov_modules_api::Context>(
-    state_overrides: HashMap<Address, AccountOverride, alloy_primitives::map::FbBuildHasher<20>>,
+    state_overrides: StateOverride,
     db: &mut EvmDb<C>,
 ) -> EthResult<()> {
     for (address, account_overrides) in state_overrides {
@@ -38,123 +41,67 @@ pub(crate) fn apply_state_overrides<C: sov_modules_api::Context>(
     Ok(())
 }
 
-/// Applies a single [`AccountOverride`] to the [`EvmDb`].
-/// Ref https://github.com/paradigmxyz/reth/blob/cbdb81069ff9c6d9e3680ad802878c5f0a5bc97f/crates/rpc/rpc-eth-types/src/revm_utils.rs#L276
-pub(crate) fn apply_account_override<C: sov_modules_api::Context>(
+fn apply_account_override<C: sov_modules_api::Context>(
     account: Address,
     account_override: AccountOverride,
     db: &mut EvmDb<C>,
 ) -> EthResult<()> {
-    // we need to fetch the account via the `DatabaseRef` to not update the state of the account,
-    // which is modified via `Database::basic_ref`
     let mut account_info = db.basic(account)?.unwrap_or_default();
+    let code = account_override
+        .code
+        .map(Bytecode::new_raw_checked)
+        .transpose()
+        .map_err(|err| EthApiError::InvalidBytecode(err.to_string()))?;
+    let (storage, replace_storage) = match (account_override.state, account_override.state_diff) {
+        (Some(_), Some(_)) => return Err(EthApiError::BothStateAndStateDiffInOverride(account)),
+        (Some(state), None) => (state, true),
+        (None, diff) => (diff.unwrap_or_default(), false),
+    };
 
     if let Some(nonce) = account_override.nonce {
         account_info.nonce = nonce;
     }
-    if let Some(code) = account_override.code {
-        let code_hash = keccak256(&code);
-        let evm = Evm::<C>::default();
-        evm.offchain_code.set(
-            &code_hash,
-            &revm::bytecode::Bytecode::new_raw_checked(code)
-                .map_err(|err| EthApiError::InvalidBytecode(err.to_string()))?,
-            &mut db.working_set.offchain_state(),
-        );
-        account_info.code_hash = code_hash;
+    if let Some(code) = code {
+        // Hash the replacement bytes, as in Alloy's override helper.
+        // <https://github.com/alloy-rs/evm/blob/v0.39.0/crates/evm/src/overrides.rs#L134-L142>
+        account_info.code_hash = code.hash_slow();
+        // A default account carries empty bytecode. Clear it so revm loads the override by hash.
+        account_info.code = None;
+        db.override_code(account_info.code_hash, code);
     }
     if let Some(balance) = account_override.balance {
         account_info.balance = balance;
     }
 
-    db.override_account(&account, account_info.clone().into());
-
-    // Create a new account marked as touched
-    let mut acc = revm::state::Account {
-        info: account_info,
-        status: AccountStatus::Touched,
-        storage: HashMap::default(),
-    };
-
-    // We ensure that not both state and state_diff are set.
-    // If state is set, we must mark the account as "NewlyCreated", so that the old storage
-    // isn't read from
-    match (account_override.state, account_override.state_diff) {
-        (Some(_), Some(_)) => return Err(EthApiError::BothStateAndStateDiffInOverride(account)),
-        (None, None) => {
-            // nothing to do
-        }
-        (Some(new_account_state), None) => {
-            // Destroy the account to ensure that its storage is cleared
-            db.commit(HashMap::from_iter([(
-                account,
-                Account {
-                    status: AccountStatus::SelfDestructed | AccountStatus::Touched,
-                    ..Default::default()
-                },
-            )]));
-            // Mark the account as created to ensure that old storage is not read
-            acc.mark_created();
-            db.override_set_account_storage(&account, new_account_state);
-        }
-        (None, Some(account_state_diff)) => {
-            db.override_set_account_storage(&account, account_state_diff);
-        }
-    };
-
-    db.commit(HashMap::from_iter([(account, acc)]));
+    db.override_account(
+        account,
+        RpcAccountOverride {
+            info: account_info,
+            storage,
+            replace_storage,
+        },
+    );
 
     Ok(())
 }
 
-/// Applies all instances of [`BlockOverride`] to the [`EvmDb`].
+/// Applies Reth's block overrides with Citrea's block gas limit ceiling.
+/// [Reth v1.3.7 `apply_block_overrides`](https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/rpc/rpc-eth-types/src/revm_utils.rs#L196-L261)
 pub(crate) fn apply_block_overrides<C: sov_modules_api::Context>(
     block_env: &mut BlockEnv,
-    block_overrides: &mut BlockOverrides,
+    mut block_overrides: BlockOverrides,
     db: &mut EvmDb<C>,
+    canonical_block: u64,
 ) {
-    if let Some(block_hashes) = block_overrides.block_hash.take() {
-        // override block hashes
-        for (num, hash) in block_hashes {
-            db.override_block_hash(num, hash);
-        }
+    if block_overrides.number.is_some() {
+        db.set_block_hash_base(canonical_block);
     }
-
-    let BlockOverrides {
-        number,
-        time,
-        gas_limit,
-        coinbase,
-        random,
-        base_fee,
-        block_hash: _,
-        difficulty: _,
-    } = *block_overrides;
-    if let Some(number) = number {
-        block_env.number = number.saturating_to();
+    if let Some(gas_limit) = &mut block_overrides.gas_limit {
+        // A zero RPC gas cap uses the block gas limit to bound transaction gas. Clamping the
+        // override keeps that bound in place and caps the value reported by GASLIMIT.
+        *gas_limit = (*gas_limit).min(block_env.gas_limit);
     }
-    if let Some(time) = time {
-        block_env.timestamp = time;
-    }
-    if let Some(gas_limit) = gas_limit {
-        // A block override may only *lower* the block gas limit, never raise it, so the `GASLIMIT`
-        // opcode a call sees is at most the chain's real value. This clamp is also the safety net
-        // for a `gas_cap` of 0 ("keep the block gas limit"): there the transaction gas is bounded
-        // by `block_env.gas_limit` (see `create_txn_env`), so without the clamp a `u64::MAX`
-        // override would let one call expand EVM memory without bound (e.g. an `MSTORE` at a
-        // multi-GiB offset). With a non-zero cap the transaction gas is bounded by the cap
-        // regardless, so the override only affects the opcode.
-        block_env.gas_limit = block_env.gas_limit.min(gas_limit);
-    }
-    if let Some(coinbase) = coinbase {
-        block_env.beneficiary = coinbase;
-    }
-    if let Some(random) = random {
-        block_env.prevrandao = Some(random);
-    }
-    if let Some(base_fee) = base_fee {
-        block_env.basefee = base_fee.saturating_to();
-    }
+    apply_reth_block_overrides(block_overrides, db, block_env);
 }
 
 /// Returns zkproof by EIP-1186 (eth_getProof).

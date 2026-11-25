@@ -12,9 +12,12 @@ use sov_db::rocks_db_config::RocksdbConfig;
 use sov_modules_api::default_context::DefaultContext;
 use sov_modules_api::fork::Fork;
 use sov_modules_api::hooks::HookL2BlockInfo;
-use sov_modules_api::{Module, Spec, WorkingSet};
+use sov_modules_api::{
+    AccessoryWorkingSet, Module, Spec, StateReaderAndWriter, StateVecAccessor, WorkingSet,
+};
 use sov_prover_storage_manager::new_orphan_storage;
 use sov_rollup_interface::spec::SpecId as SovSpecId;
+use sov_state::codec::RlpCodec;
 use sov_state::{ProverStorage, Storage};
 
 use super::get_test_seq_pub_key;
@@ -23,6 +26,19 @@ use crate::tests::test_signer::TestSigner;
 use crate::{AccountData, Evm, EvmConfig, RlpEvmTransaction, PRIORITY_FEE_VAULT};
 
 type C = DefaultContext;
+
+/// Removes a native header while retaining the rest of the block's state.
+pub(crate) fn remove_native_header(
+    evm: &Evm<C>,
+    number: u64,
+    working_set: &mut WorkingSet<ProverStorage>,
+) {
+    let blocks =
+        StateVecAccessor::<_, _, AccessoryWorkingSet<'_, ProverStorage>>::prefix(&evm.blocks);
+    working_set
+        .accessory_state()
+        .delete_value::<usize, usize, _>(&blocks.extended(b"e"), &(number as usize), &RlpCodec);
+}
 
 pub(crate) static GENESIS_HASH: LazyLock<B256> = LazyLock::new(|| {
     B256::from(hex!(

@@ -1,5 +1,8 @@
 # Changelog
 ## [Unreleased]
+### Changed
+- fix(rpc): apply state overrides only to the current simulation. A `state` override replaces all storage for the account and omitted slots read as zero. `eth_call` and `debug_traceCall` resolve block-hash overrides by height and fall back to canonical headers within the simulated `BLOCKHASH` window, including during historical calls. [Reth v1.3.7 override handling](https://github.com/paradigmxyz/reth/blob/ed7da87da4de340a437bf46f39a7e1397ac82065/crates/rpc/rpc-eth-types/src/revm_utils.rs#L196-L340)
+- fix(rpc): keep the pending parent hash local to each simulation and support pending queries when the previous header has been pruned.
 
 
 ## [v3.0.0](2026-11-23)
