@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use alloy_rpc_types::TransactionTrait;
+use alloy_sol_types::{sol, SolCall};
 use async_trait::async_trait;
 use bitcoin::hashes::Hash;
 use bitcoincore_rpc::RpcApi;
@@ -11,12 +13,17 @@ use citrea_e2e::test_case::{TestCase, TestCaseRunner};
 use citrea_e2e::traits::Restart;
 use citrea_e2e::Result;
 use citrea_evm::system_contracts::BitcoinLightClient;
-use citrea_evm::BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS;
+use citrea_evm::{BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS, SYSTEM_SIGNER};
 use sov_ledger_rpc::LedgerRpcClient;
 use tokio::time::sleep;
 
 use super::get_citrea_path;
+use crate::common::client::TestClient;
 use crate::common::make_test_client;
+
+sol! {
+    function setBlockInfo(bytes32 blockHash, bytes32 witnessRoot, uint256 coinbaseDepth);
+}
 
 struct BasicSequencerTest;
 
@@ -460,6 +467,264 @@ async fn drive_until_scanned(client: &citrea_e2e::client::Client, target: u64) -
 #[tokio::test]
 async fn test_sequencer_last_scanned_l1_height_running() -> Result<()> {
     TestCaseRunner::new(SequencerLastScannedL1HeightRunningTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+/// Reads a block hash out of the Bitcoin light client contract. A height the sequencer
+/// has not recorded reads back as all zeroes.
+async fn light_client_block_hash(client: &TestClient, l1_height: u64) -> Result<[u8; 32]> {
+    let res: String = client
+        .contract_call(
+            BITCOIN_LIGHT_CLIENT_CONTRACT_ADDRESS,
+            BitcoinLightClient::get_block_hash(l1_height).to_vec(),
+            None,
+        )
+        .await
+        .unwrap();
+
+    Ok(hex::decode(&res[2..])
+        .unwrap()
+        .try_into()
+        .expect("light client block hash should be 32 bytes"))
+}
+
+/// Returns every `setBlockInfo` call included in the given L2 block range.
+async fn set_block_info_calls(
+    client: &TestClient,
+    l2_heights: std::ops::RangeInclusive<u64>,
+) -> Result<Vec<setBlockInfoCall>> {
+    let mut calls = vec![];
+
+    for l2_height in l2_heights {
+        let block = client
+            .eth_get_block_by_number_with_detail(Some(l2_height.into()))
+            .await;
+        let transactions = block
+            .transactions
+            .as_transactions()
+            .expect("detailed block response should contain full transactions");
+
+        for tx in transactions {
+            if tx.to() == Some(BitcoinLightClient::address())
+                && tx.input().starts_with(&setBlockInfoCall::SELECTOR)
+            {
+                assert_eq!(
+                    tx.inner.signer(),
+                    SYSTEM_SIGNER,
+                    "setBlockInfo must be a system transaction"
+                );
+                calls.push(setBlockInfoCall::abi_decode(tx.input(), true)?);
+            }
+        }
+    }
+
+    Ok(calls)
+}
+
+/// How the sequencer runs into the stale DA tip.
+enum StaleTip {
+    /// It is already running and the stale tip arrives over the DA block monitor.
+    WhileRunning,
+    /// It comes up against a DA node that is already behind, so its whole view of L1 is
+    /// the stale one and there is no earlier height in memory to compare against. Only
+    /// the height read back out of the light client contract stands in the way.
+    OnStartup,
+}
+
+/// A Bitcoin node that is catching up — after a restart of its own, or of the machine it
+/// shares with the sequencer — answers with a tip below one the sequencer has already
+/// folded into the Bitcoin light client contract. `setBlockInfo` takes no height, the
+/// contract counts for itself, so recording such a block fails short header proof
+/// verification and takes L2 block production down with it for as long as the node stays
+/// behind. Neither may happen: L2 blocks keep coming, L1 stays put until the node is
+/// caught up.
+///
+/// 1. Drive the sequencer until it has folded the finalized L1 tip into the contract.
+/// 2. When testing a running sequencer, let its monitor cache a newer finalized tip
+///    without producing an L2 block, leaving pending missed DA blocks.
+/// 3. Invalidate DA blocks so the node reports a finalized height below the sequencer's
+///    last good view, and let the sequencer meet it either way round.
+/// 4. Assert the sequencer keeps producing L2 blocks and records nothing for the stale
+///    tip.
+/// 5. Restore the DA chain and assert the sequencer picks up where it left off.
+async fn run_stale_da_tip_test(f: &mut TestFramework, stale_tip: StaleTip) -> Result<()> {
+    let sequencer = f.sequencer.as_mut().unwrap();
+    let da = f.bitcoin_nodes.get(0).unwrap();
+
+    let seq_test_client = make_test_client(SocketAddr::new(
+        sequencer.config.rpc_bind_host().parse()?,
+        sequencer.config.rpc_bind_port(),
+    ))
+    .await?;
+
+    // Catch the sequencer up with the finalized L1 tip.
+    da.generate(5).await?;
+    let target_l1_height = da
+        .get_finalized_height(Some(DEFAULT_FINALITY_DEPTH))
+        .await?;
+    let scanned = drive_until_scanned(&sequencer.client, target_l1_height).await?;
+    assert_eq!(scanned, target_l1_height);
+    assert_eq!(
+        light_client_block_hash(&seq_test_client, scanned + 1).await?,
+        [0u8; 32],
+        "nothing should be recorded above the scanned L1 height yet"
+    );
+
+    let last_good_finalized_height = match stale_tip {
+        StaleTip::WhileRunning => {
+            // Let the monitor observe a tip several blocks ahead of the light client,
+            // creating pending missed DA blocks without giving the sequencer a production
+            // request on which to process them.
+            da.generate(5).await?;
+            let pending_finalized_height = da
+                .get_finalized_height(Some(DEFAULT_FINALITY_DEPTH))
+                .await?;
+            assert!(pending_finalized_height > scanned + 1);
+            sleep(Duration::from_secs(1)).await;
+            pending_finalized_height
+        }
+        StaleTip::OnStartup => scanned,
+    };
+
+    // Walk the DA node's tip backwards, so the finalized height it reports drops below
+    // the last finalized height the sequencer observed.
+    let invalidated = da.get_block_hash(da.get_block_count().await? - 2).await?;
+    da.invalidate_block(&invalidated).await?;
+    let stale_finalized_height = da
+        .get_finalized_height(Some(DEFAULT_FINALITY_DEPTH))
+        .await?;
+    assert!(
+        stale_finalized_height < last_good_finalized_height,
+        "invalidating blocks should regress the finalized height"
+    );
+    if matches!(stale_tip, StaleTip::WhileRunning) {
+        assert!(
+            stale_finalized_height > scanned,
+            "the regressed tip should remain ahead of the light client"
+        );
+    }
+
+    match stale_tip {
+        // Give the DA block monitor time to observe the stale tip.
+        StaleTip::WhileRunning => sleep(Duration::from_secs(1)).await,
+        StaleTip::OnStartup => sequencer.restart(None, None).await?,
+    }
+
+    // The sequencer keeps producing L2 blocks off its last good view of L1
+    let head = sequencer.client.ledger_get_head_l2_block_height().await?;
+    for i in 1..=3 {
+        sequencer.client.send_publish_batch_request().await?;
+        sequencer.client.wait_for_l2_block(head + i, None).await?;
+    }
+
+    assert!(
+        set_block_info_calls(&seq_test_client, head + 1..=head + 3)
+            .await?
+            .is_empty(),
+        "L2 blocks produced from a stale DA tip must not contain setBlockInfo"
+    );
+
+    assert_eq!(
+        sequencer.client.ledger_get_last_scanned_l1_height().await?,
+        scanned,
+        "scanned L1 height must not move while the DA node is behind"
+    );
+    assert_eq!(
+        light_client_block_hash(&seq_test_client, scanned + 1).await?,
+        [0u8; 32],
+        "a stale DA tip must not be written to the light client contract"
+    );
+
+    // Once the DA node is whole again, the sequencer picks up where it left off.
+    da.reconsider_block(&invalidated).await?;
+    da.generate(1).await?;
+    let next_target = da
+        .get_finalized_height(Some(DEFAULT_FINALITY_DEPTH))
+        .await?;
+    assert!(next_target > scanned);
+
+    let recovery_l2_start = sequencer.client.ledger_get_head_l2_block_height().await?;
+    let scanned_after = drive_until_scanned(&sequencer.client, next_target).await?;
+    assert_eq!(scanned_after, next_target);
+    let recovery_l2_end = sequencer.client.ledger_get_head_l2_block_height().await?;
+
+    let mut expected_recovery_block_hashes = vec![];
+    for l1_height in scanned + 1..=next_target {
+        expected_recovery_block_hashes.push(
+            da.get_block_hash(l1_height)
+                .await?
+                .to_raw_hash()
+                .to_byte_array(),
+        );
+    }
+
+    let recovery_set_block_info_calls =
+        set_block_info_calls(&seq_test_client, recovery_l2_start + 1..=recovery_l2_end).await?;
+    let actual_recovery_block_hashes: Vec<[u8; 32]> = recovery_set_block_info_calls
+        .iter()
+        .map(|call| call.blockHash.into())
+        .collect();
+    assert_eq!(
+        actual_recovery_block_hashes, expected_recovery_block_hashes,
+        "catching up must include exactly one ordered setBlockInfo call per recovered L1 block"
+    );
+
+    assert_eq!(
+        light_client_block_hash(&seq_test_client, scanned + 1).await?,
+        expected_recovery_block_hashes[0],
+        "the light client should resume with the real L1 block above the scanned height"
+    );
+
+    Ok(())
+}
+
+/// Avoid commitment churn interfering with DA block accounting during the stale tip tests.
+fn stale_da_tip_sequencer_config() -> SequencerConfig {
+    SequencerConfig {
+        max_l2_blocks_per_commitment: 1000,
+        ..Default::default()
+    }
+}
+
+struct SequencerStaleDaTipTest;
+
+#[async_trait]
+impl TestCase for SequencerStaleDaTipTest {
+    fn sequencer_config() -> SequencerConfig {
+        stale_da_tip_sequencer_config()
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        run_stale_da_tip_test(f, StaleTip::WhileRunning).await
+    }
+}
+
+#[tokio::test]
+async fn test_sequencer_stale_da_tip() -> Result<()> {
+    TestCaseRunner::new(SequencerStaleDaTipTest)
+        .set_citrea_path(get_citrea_path())
+        .run()
+        .await
+}
+
+struct SequencerStaleDaTipOnStartupTest;
+
+#[async_trait]
+impl TestCase for SequencerStaleDaTipOnStartupTest {
+    fn sequencer_config() -> SequencerConfig {
+        stale_da_tip_sequencer_config()
+    }
+
+    async fn run_test(&mut self, f: &mut TestFramework) -> Result<()> {
+        run_stale_da_tip_test(f, StaleTip::OnStartup).await
+    }
+}
+
+#[tokio::test]
+async fn test_sequencer_stale_da_tip_on_startup() -> Result<()> {
+    TestCaseRunner::new(SequencerStaleDaTipOnStartupTest)
         .set_citrea_path(get_citrea_path())
         .run()
         .await
