@@ -14,12 +14,10 @@ resolver = "2"
 [dependencies]
 # 3rd-party dependencies
 async-trait = { workspace = true }
-borsh = { workspace = true }
 citrea-common = { path = "../common" }
 citrea-evm = { path = "../evm", features = ["native"] }
 citrea-primitives = { path = "../primitives" }
 citrea-sequencer = { path = "../sequencer" }
-futures = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 parking_lot = { workspace = true }
 rustc_version_runtime = { workspace = true }
@@ -37,10 +35,8 @@ alloy-rpc-types = { workspace = true }
 alloy-rpc-types-eth = { workspace = true }
 alloy-rpc-types-trace = { workspace = true }
 alloy-serde = { workspace = true }
-reth-primitives = { workspace = true }
 reth-rpc-eth-api = { workspace = true }
 reth-rpc-eth-types = { workspace = true }
-reth-rpc-types-compat = { workspace = true }
 reth-tasks = { workspace = true }
 
 # Sovereign-SDK deps
