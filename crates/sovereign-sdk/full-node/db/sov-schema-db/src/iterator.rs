@@ -50,7 +50,11 @@ impl<'a, S> SchemaIterator<'a, S>
 where
     S: Schema,
 {
-    pub(crate) fn new(db_iter: rocksdb::DBRawIterator<'a>, direction: ScanDirection) -> Self {
+    pub(crate) fn new(mut db_iter: rocksdb::DBRawIterator<'a>, direction: ScanDirection) -> Self {
+        if matches!(direction, ScanDirection::Backward) {
+            db_iter.seek_to_last();
+        }
+
         SchemaIterator {
             db_iter,
             direction,
